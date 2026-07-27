@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ticket Insight Tool (Gemini Powered)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { background-color: #0f172a; color: #f8fafc; }
+  </style>
+</head>
+<body class="p-6 font-sans">
+  <div class="max-w-6xl mx-auto space-y-6">
+    
+    <!-- Header -->
+    <header class="flex justify-between items-center border-b border-slate-800 pb-4">
+      <div>
+        <h1 class="text-2xl font-bold text-sky-400">Ticket Insight Analyzer</h1>
+        <p class="text-xs text-slate-400 mt-1">Client-side AI Data Analysis • Google Gemini Integration</p>
+      </div>
+      <div class="flex items-center space-x-3">
+        <label for="apiKey" class="text-xs text-slate-400">Gemini API Key:</label>
+        <input type="password" id="apiKey" placeholder="AIzaSy..." class="bg-slate-800 text-sm px-3 py-1.5 rounded border border-slate-700 text-slate-200 focus:outline-none focus:border-sky-500 w-64">
+      </div>
+    </header>
+
+    <!-- Controls -->
+    <div class="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50 space-y-3">
+      <div class="flex items-center justify-between">
+        <input type="file" id="csvFile" accept=".csv" class="text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-sky-500/10 file:text-sky-400 hover:file:bg-sky-500/20 cursor-pointer">
+        <span id="rowCount" class="text-xs text-slate-400">Rows loaded: 0 (Sampled to max 50)</span>
+      </div>
+      
+      <div class="flex gap-2">
+        <input type="text" id="userQuery" placeholder="Ask a question about your tickets (e.g., 'What are the top recurring issues and SLA risks?')" class="flex-1 bg-slate-900 text-sm px-4 py-2.5 rounded-lg border border-slate-700 text-slate-100 focus:outline-none focus:border-sky-500">
+        <button id="analyzeBtn" onclick="runAnalysis()" class="bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold px-5 py-2.5 rounded-lg text-sm transition-colors">Analyze</button>
+      </div>
+    </div>
+
+    <!-- Status Indicator -->
+    <div id="status" class="hidden text-xs text-sky-400 bg-sky-950/30 border border-sky-900/50 p-3 rounded-lg flex items-center gap-2">
+      <div class="w-2 h-2 rounded-full bg-sky-400 animate-ping"></div>
+      <span id="statusText">Processing data with Gemini...</span>
+    </div>
+
+    <!-- Results Section -->
+    <div id="results" class="hidden space-y-6">
+      
+      <!-- Chart Zone -->
+      <div class="bg-slate-800/40 p-4 rounded-xl border border-slate-700/50">
+        <h3 class="text-sm font-semibold text-slate-300 mb-4" id="chartTitle">Analysis Visualization</h3>
+        <div class="relative h-64 w-full">
+          <canvas id="insightChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Key Insights Narrative -->
+      <div class="bg-slate-800/40 p-4 rounded-xl border border-slate-700/50">
+        <h3 class="text-sm font-semibold text-slate-300 mb-2">Executive Summary & Recommendations</h3>
+        <div id="narrativeOutput" class="text-sm text-slate-300 space-y-2 leading-relaxed"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    let csvDataSample = [];
+    let activeChart = null;
+
+    // Parse CSV locally and take a privacy-focused 50-row sample
+    document.getElementById('csvFile').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const lines = evt.target.result.split('\n').filter(line => line.trim().length > 0);
+        const headers = lines[0].split(',').map(h => h.trim());
+        
+        const rows = lines.slice(1, 51).map(line => {
+          const values = line.split(',').map(v => v.trim());
+          let obj = {};
+          headers.forEach((h, i) => obj[h] = values[i] || '');
+          return obj;
+        });
+
+        csvDataSample = rows;
+        document.getElementById('rowCount').innerText = `Rows loaded: ${lines.length - 1} (Sampled to ${rows.length} for AI transmission)`;
+      };
+      reader.readAsText(file);
+    });
+
+    // Gemini API Provider Adapter
+    class GeminiAdapter {
+      constructor(apiKey) {
+        this.apiKey = apiKey;
+        this.endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`;
+      }
+
+      async analyze(systemInstruction, userPrompt) {
+        const response = await fetch(`${this.endpoint}?key=${this.apiKey}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            system_instruction: {
+              parts: [{ text: systemInstruction }]
+            },
+            contents: [{
+              parts: [{ text: userPrompt }]
+            }],
+            generationConfig: {
+              response_mime_type: "application/json",
+              temperature: 0.2
+            }
+          })
+        });
+
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.error?.message || `API HTTP Error ${response.status}`);
+        }
+
+        const data = await response.json();
+        const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        
+        return JSON.parse(rawText);
+      }
+    }
+
+    async function runAnalysis() {
+      const apiKey = document.getElementById('apiKey').value.trim();
+      const userQuery = document.getElementById('userQuery').value.trim();
+      const status = document.getElementById('status');
+      const statusText = document.getElementById('statusText');
+      const results = document.getElementById('results');
+
+      if (!apiKey) return alert('Please enter your Gemini API key.');
+      if (csvDataSample.length === 0) return alert('Please upload a CSV file first.');
+      if (!userQuery) return alert('Please enter a query or question.');
+
+      status.classList.remove('hidden');
+      statusText.innerText = 'Analyzing sample dataset with Gemini...';
+      results.classList.add('hidden');
+
+      const systemInstruction = `You are a data analysis engine specializing in IT ticket diagnostics. 
+Analyze the provided JSON ticket dataset and respond ONLY with a strict JSON object matching this schema:
+{
+  "chartTitle": "Brief descriptive title",
+  "chartType": "bar" | "pie" | "line",
+  "labels": ["Label1", "Label2", ...],
+  "values": [10, 20, ...],
+  "summary": ["Point 1", "Point 2", "Point 3"]
+}`;
+
+      const userPrompt = `Query: ${userQuery}\n\nDataset Sample:\n${JSON.stringify(csvDataSample, null, 2)}`;
+
+      try {
+        const gemini = new GeminiAdapter(apiKey);
+        const parsedResult = await gemini.analyze(systemInstruction, userPrompt);
+
+        renderResults(parsedResult);
+        status.classList.add('hidden');
+        results.classList.remove('hidden');
+      } catch (err) {
+        alert('Analysis failed: ' + err.message);
+        status.classList.add('hidden');
+      }
+    }
+
+    function renderResults(data) {
+      document.getElementById('chartTitle').innerText = data.chartTitle || 'Insight Chart';
+      
+      // Render Summary Bullet Points
+      const summaryContainer = document.getElementById('narrativeOutput');
+      summaryContainer.innerHTML = '';
+      (data.summary || []).forEach(pt => {
+        const p = document.createElement('p');
+        p.className = 'text-slate-300 text-xs leading-relaxed flex items-start gap-2';
+        p.innerHTML = `<span class="text-sky-400 font-bold">•</span> <span>${pt}</span>`;
+        summaryContainer.appendChild(p);
+      });
+
+      // Render Chart.js Visualization
+      const ctx = document.getElementById('insightChart').getContext('2d');
+      if (activeChart) activeChart.destroy();
+
+      activeChart = new Chart(ctx, {
+        type: data.chartType || 'bar',
+        data: {
+          labels: data.labels || [],
+          datasets: [{
+            label: 'Ticket Count / Metric',
+            data: data.values || [],
+            backgroundColor: [
+              'rgba(56, 189, 248, 0.6)',
+              'rgba(129, 140, 248, 0.6)',
+              'rgba(52, 211, 153, 0.6)',
+              'rgba(251, 146, 60, 0.6)',
+              'rgba(244, 63, 94, 0.6)'
+            ],
+            borderColor: 'rgba(255,255,255,0.1)',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: '#94a3b8' } }
+          },
+          scales: (data.chartType === 'pie' ? {} : {
+            x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+            y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+          })
+        }
+      });
+    }
+  </script>
+</body>
+</html>
