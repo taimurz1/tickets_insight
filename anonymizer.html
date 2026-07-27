@@ -25,7 +25,7 @@
     <!-- Header -->
     <header class="border-b border-slate-800 pb-4">
       <h1 class="text-2xl font-bold text-sky-400">Excel Data Anonymizer</h1>
-      <p class="text-xs text-slate-400 mt-1">Consistent client-side masking for names, numbers, passwords, emails, and locations.</p>
+      <p class="text-xs text-slate-400 mt-1">Consistent client-side masking for names, numbers, passwords, emails, and locations. (Dates & Times preserved)</p>
     </header>
 
     <!-- Upload Zone -->
@@ -54,7 +54,7 @@
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
         <span>Redaction Complete!</span>
       </div>
-      <p class="text-xs text-slate-300">Data scrubbed with 1:1 mapping consistency (recurring names and numbers match throughout the file).</p>
+      <p class="text-xs text-slate-300">Data scrubbed with 1:1 mapping consistency. All dates and timestamps have been left completely intact.</p>
       <div class="pt-2">
         <a id="downloadLink" href="#" class="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold px-5 py-2.5 rounded-lg text-sm transition-colors">
           Download Anonymized File (.xlsx)
@@ -69,9 +69,8 @@
     const FIRST_NAMES = ["Alex", "Jordan", "Taylor", "Morgan", "Sam", "Chris", "Pat", "Devon", "Casey", "Riley", "Jamie", "Avery", "Dakota", "Reese", "Quinn", "Skyler", "Cameron", "Rowan"];
     const LAST_NAMES = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson", "Thomas", "Taylor", "Moore"];
 
-    // Masking Engine with Stateful Dictionary
+    // Masking Engine with Stateful Dictionary & Date Guards
     const Redactor = {
-      // Dictionaries to hold 1:1 consistent mappings across the entire document
       mappings: {
         names: new Map(),
         values: new Map()
@@ -81,10 +80,18 @@
         names: ['name', 'first name', 'last name', 'full name', 'user', 'username', 'employee', 'created by', 'assigned to', 'author', 'reporter', 'owner'],
         passwords: ['password', 'pass', 'pwd', 'token', 'secret', 'key'],
         phones: ['phone', 'mobile', 'contact', 'cell', 'fax', 'tel'],
-        locations: ['address', 'location', 'city', 'state', 'country', 'zip', 'street', 'place', 'site']
+        locations: ['address', 'location', 'city', 'state', 'country', 'zip', 'street', 'place', 'site'],
+        dates: ['date', 'time', 'created', 'updated', 'timestamp', 'due', 'opened', 'closed', 'resolved', 'dob']
       },
 
-      // Reset dictionaries for a fresh file run
+      // Regex patterns to identify date and time formats in text strings
+      datePatterns: [
+        /^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}/,                       // 2026-07-27, 2026/07/27
+        /^\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}/,                       // 07/27/2026, 27-07-2026
+        /^\d{1,2}:\d{2}(:\d{2})?\s*(AM|PM|am|pm)?/,               // 14:04:12, 02:04 PM
+        /^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i    // Jul 27, 2026
+      ],
+
       resetState() {
         this.mappings.names.clear();
         this.mappings.values.clear();
@@ -94,7 +101,24 @@
         return arr[Math.floor(Math.random() * arr.length)];
       },
 
-      // Consistent digit scrambling (preserves length, spaces, and special characters)
+      isDateTime(cell, headerName) {
+        const normHeader = (headerName || '').toLowerCase().trim();
+
+        // 1. Native Excel Date Objects / Date formats
+        if (cell.t === 'd' || (cell.z && /m\/d|yy|hh:mm/i.test(cell.z))) {
+          return true;
+        }
+
+        // 2. Column Header indicates date/time
+        if (this.sensitiveHeaders.dates.some(d => normHeader.includes(d))) {
+          return true;
+        }
+
+        // 3. String Regex match for date/time patterns
+        const stringVal = String(cell.v).trim();
+        return this.datePatterns.some(pattern => pattern.test(stringVal));
+      },
+
       scrambleNumbersConsistent(text) {
         const key = String(text);
         if (this.mappings.values.has(key)) {
@@ -106,7 +130,6 @@
         return scrambled;
       },
 
-      // Consistent name replacement
       generateRandomNameConsistent(originalText) {
         const key = String(originalText).trim();
         if (this.mappings.names.has(key)) {
@@ -114,22 +137,22 @@
         }
 
         const parts = key.split(/\s+/);
-        let fakeName = "";
-        if (parts.length === 1) {
-          fakeName = this.getRandomElement(FIRST_NAMES);
-        } else {
-          fakeName = `${this.getRandomElement(FIRST_NAMES)} ${this.getRandomElement(LAST_NAMES)}`;
-        }
+        let fakeName = parts.length === 1 ? this.getRandomElement(FIRST_NAMES) : `${this.getRandomElement(FIRST_NAMES)} ${this.getRandomElement(LAST_NAMES)}`;
 
         this.mappings.names.set(key, fakeName);
         return fakeName;
       },
 
-      maskCell(value, headerName) {
-        if (value === null || value === undefined || value === '') return value;
+      maskCell(cell, headerName) {
+        if (!cell || cell.v === null || cell.v === undefined || cell.v === '') return cell.v;
+
+        // SKIP ANONYMIZATION IF IT IS A DATE OR TIMESTAMP
+        if (this.isDateTime(cell, headerName)) {
+          return cell.v;
+        }
 
         const normHeader = (headerName || '').toLowerCase().trim();
-        const stringVal = String(value);
+        const stringVal = String(cell.v);
 
         // 1. Password Redaction
         if (this.sensitiveHeaders.passwords.includes(normHeader)) {
@@ -146,10 +169,10 @@
           return this.scrambleNumbersConsistent(stringVal);
         }
 
-        // 4. Numeric Values or Embedded Numbers
-        if (typeof value === 'number' || /\d/.test(stringVal)) {
+        // 4. Numeric Values or Embedded Numbers (excluding verified dates)
+        if (typeof cell.v === 'number' || /\d/.test(stringVal)) {
           const scrambled = this.scrambleNumbersConsistent(stringVal);
-          return typeof value === 'number' ? Number(scrambled) : scrambled;
+          return typeof cell.v === 'number' ? Number(scrambled) : scrambled;
         }
 
         return stringVal;
@@ -174,7 +197,6 @@
       downloadContainer.classList.add('hidden');
       statusText.innerText = 'Reading file structure...';
 
-      // Reset mapping memory before processing
       Redactor.resetState();
 
       const reader = new FileReader();
@@ -182,23 +204,21 @@
       reader.onload = function(e) {
         try {
           const data = new Uint8Array(e.target.result);
-          const workbook = XLSX.read(data, { type: 'array' });
+          // cellDates: true ensures SheetJS parses Excel date formats cleanly
+          const workbook = XLSX.read(data, { type: 'array', cellDates: true });
           
           let cellsModified = 0;
 
-          // Process each sheet in the workbook
           workbook.SheetNames.forEach(sheetName => {
             const worksheet = workbook.Sheets[sheetName];
             const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
 
-            // Cache headers (row 0) to evaluate column names
             const headers = {};
             for (let C = range.s.c; C <= range.e.c; ++C) {
               const cellAddress = XLSX.utils.encode_cell({ r: range.s.r, c: C });
               headers[C] = worksheet[cellAddress] ? String(worksheet[cellAddress].v) : '';
             }
 
-            // Iterate through rows (skipping header row 0)
             for (let R = range.s.r + 1; R <= range.e.r; ++R) {
               for (let C = range.s.c; C <= range.e.c; ++C) {
                 const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
@@ -207,11 +227,11 @@
                 if (cell && (cell.v !== undefined && cell.v !== null)) {
                   const originalVal = cell.v;
                   const headerName = headers[C];
-                  const redactedVal = Redactor.maskCell(originalVal, headerName);
+                  const redactedVal = Redactor.maskCell(cell, headerName);
 
                   if (originalVal !== redactedVal) {
                     cell.v = redactedVal;
-                    cell.w = undefined; // Force SheetJS to re-render display text
+                    cell.w = undefined; // Force SheetJS re-formatting
                     cellsModified++;
                   }
                 }
@@ -219,18 +239,15 @@
             }
           });
 
-          // Generate modified XLSX binary
           const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
           const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
           
-          // Set up client-side download link
           const fileName = file.name.replace(/\.[^/.]+$/, '') + '_ANONYMIZED.xlsx';
           downloadLink.href = URL.createObjectURL(blob);
           downloadLink.download = fileName;
 
-          // UI updates
           statusText.innerText = 'File successfully anonymized!';
-          statsText.innerText = `${cellsModified} values anonymized (${Redactor.mappings.names.size + Redactor.mappings.values.size} unique entities mapped).`;
+          statsText.innerText = `${cellsModified} values anonymized (Dates & timestamps kept unchanged).`;
           downloadContainer.classList.remove('hidden');
 
         } catch (err) {
