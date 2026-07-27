@@ -14,10 +14,18 @@
 <body class="p-6 font-sans">
   <div class="max-w-4xl mx-auto space-y-6">
     
+    <!-- Navigation back to main app -->
+    <div>
+      <a href="index.html" class="inline-flex items-center gap-2 text-xs text-slate-400 hover:text-sky-400 transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+        Back to Ticket Analyzer
+      </a>
+    </div>
+
     <!-- Header -->
     <header class="border-b border-slate-800 pb-4">
       <h1 class="text-2xl font-bold text-sky-400">Excel Data Anonymizer</h1>
-      <p class="text-xs text-slate-400 mt-1">Client-side redaction for names, phones, emails, passwords, and locations.</p>
+      <p class="text-xs text-slate-400 mt-1">Consistent client-side masking for names, numbers, passwords, emails, and locations.</p>
     </header>
 
     <!-- Upload Zone -->
@@ -46,7 +54,7 @@
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
         <span>Redaction Complete!</span>
       </div>
-      <p class="text-xs text-slate-300">All sensitive identifiers have been replaced while maintaining original columns, formatting, and structure.</p>
+      <p class="text-xs text-slate-300">Data scrubbed with 1:1 mapping consistency (recurring names and numbers match throughout the file).</p>
       <div class="pt-2">
         <a id="downloadLink" href="#" class="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold px-5 py-2.5 rounded-lg text-sm transition-colors">
           Download Anonymized File (.xlsx)
@@ -57,40 +65,94 @@
   </div>
 
   <script>
-    // Pattern Matchers & Anonymization Engine
+    // Pool of realistic sample names
+    const FIRST_NAMES = ["Alex", "Jordan", "Taylor", "Morgan", "Sam", "Chris", "Pat", "Devon", "Casey", "Riley", "Jamie", "Avery", "Dakota", "Reese", "Quinn", "Skyler", "Cameron", "Rowan"];
+    const LAST_NAMES = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson", "Thomas", "Taylor", "Moore"];
+
+    // Masking Engine with Stateful Dictionary
     const Redactor = {
-      // Regular expressions for common PII
-      patterns: {
-        email: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g,
-        phone: /(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g,
-        password: /(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*#?&]{8,}/g
+      // Dictionaries to hold 1:1 consistent mappings across the entire document
+      mappings: {
+        names: new Map(),
+        values: new Map()
       },
 
-      // Headers indicating sensitive columns
       sensitiveHeaders: {
-        names: ['name', 'first name', 'last name', 'full name', 'user', 'username', 'employee'],
-        passwords: ['password', 'pass', 'pwd', 'token', 'secret'],
-        phones: ['phone', 'mobile', 'contact', 'cell', 'fax'],
-        locations: ['address', 'location', 'city', 'state', 'country', 'zip', 'street', 'place']
+        names: ['name', 'first name', 'last name', 'full name', 'user', 'username', 'employee', 'created by', 'assigned to', 'author', 'reporter', 'owner'],
+        passwords: ['password', 'pass', 'pwd', 'token', 'secret', 'key'],
+        phones: ['phone', 'mobile', 'contact', 'cell', 'fax', 'tel'],
+        locations: ['address', 'location', 'city', 'state', 'country', 'zip', 'street', 'place', 'site']
+      },
+
+      // Reset dictionaries for a fresh file run
+      resetState() {
+        this.mappings.names.clear();
+        this.mappings.values.clear();
+      },
+
+      getRandomElement(arr) {
+        return arr[Math.floor(Math.random() * arr.length)];
+      },
+
+      // Consistent digit scrambling (preserves length, spaces, and special characters)
+      scrambleNumbersConsistent(text) {
+        const key = String(text);
+        if (this.mappings.values.has(key)) {
+          return this.mappings.values.get(key);
+        }
+
+        const scrambled = key.replace(/\d/g, () => Math.floor(Math.random() * 10));
+        this.mappings.values.set(key, scrambled);
+        return scrambled;
+      },
+
+      // Consistent name replacement
+      generateRandomNameConsistent(originalText) {
+        const key = String(originalText).trim();
+        if (this.mappings.names.has(key)) {
+          return this.mappings.names.get(key);
+        }
+
+        const parts = key.split(/\s+/);
+        let fakeName = "";
+        if (parts.length === 1) {
+          fakeName = this.getRandomElement(FIRST_NAMES);
+        } else {
+          fakeName = `${this.getRandomElement(FIRST_NAMES)} ${this.getRandomElement(LAST_NAMES)}`;
+        }
+
+        this.mappings.names.set(key, fakeName);
+        return fakeName;
       },
 
       maskCell(value, headerName) {
-        if (typeof value !== 'string' || value.trim() === '') return value;
+        if (value === null || value === undefined || value === '') return value;
 
-        let str = value;
         const normHeader = (headerName || '').toLowerCase().trim();
+        const stringVal = String(value);
 
-        // Check if full cell matches a header-based type
-        if (this.sensitiveHeaders.passwords.includes(normHeader)) return '●●●●●●●●';
-        if (this.sensitiveHeaders.names.includes(normHeader)) return '[REDACTED NAME]';
-        if (this.sensitiveHeaders.locations.includes(normHeader)) return '[REDACTED LOCATION]';
-        if (this.sensitiveHeaders.phones.includes(normHeader)) return '[REDACTED PHONE]';
+        // 1. Password Redaction
+        if (this.sensitiveHeaders.passwords.includes(normHeader)) {
+          return '●●●●●●●●';
+        }
 
-        // Apply regex replacements for embedded inline strings
-        str = str.replace(this.patterns.email, 'user@redacted-domain.com');
-        str = str.replace(this.patterns.phone, '[REDACTED PHONE]');
+        // 2. Name Redaction (Consistent 1:1 mapping)
+        if (this.sensitiveHeaders.names.includes(normHeader)) {
+          return this.generateRandomNameConsistent(stringVal);
+        }
 
-        return str;
+        // 3. Phone/Location Header-based Scrambling
+        if (this.sensitiveHeaders.phones.includes(normHeader) || this.sensitiveHeaders.locations.includes(normHeader)) {
+          return this.scrambleNumbersConsistent(stringVal);
+        }
+
+        // 4. Numeric Values or Embedded Numbers
+        if (typeof value === 'number' || /\d/.test(stringVal)) {
+          const scrambled = this.scrambleNumbersConsistent(stringVal);
+          return typeof value === 'number' ? Number(scrambled) : scrambled;
+        }
+
+        return stringVal;
       }
     };
 
@@ -111,6 +173,9 @@
       status.classList.remove('hidden');
       downloadContainer.classList.add('hidden');
       statusText.innerText = 'Reading file structure...';
+
+      // Reset mapping memory before processing
+      Redactor.resetState();
 
       const reader = new FileReader();
       
@@ -139,14 +204,14 @@
                 const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
                 const cell = worksheet[cellAddress];
 
-                if (cell && cell.v) {
-                  const originalVal = String(cell.v);
+                if (cell && (cell.v !== undefined && cell.v !== null)) {
+                  const originalVal = cell.v;
                   const headerName = headers[C];
                   const redactedVal = Redactor.maskCell(originalVal, headerName);
 
                   if (originalVal !== redactedVal) {
                     cell.v = redactedVal;
-                    cell.w = undefined; // Force SheetJS to reformat display string
+                    cell.w = undefined; // Force SheetJS to re-render display text
                     cellsModified++;
                   }
                 }
@@ -165,7 +230,7 @@
 
           // UI updates
           statusText.innerText = 'File successfully anonymized!';
-          statsText.innerText = `${cellsModified} cells redacted across ${workbook.SheetNames.length} sheet(s).`;
+          statsText.innerText = `${cellsModified} values anonymized (${Redactor.mappings.names.size + Redactor.mappings.values.size} unique entities mapped).`;
           downloadContainer.classList.remove('hidden');
 
         } catch (err) {
