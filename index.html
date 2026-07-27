@@ -18,13 +18,31 @@
     <div class="flex items-center justify-between border-b border-slate-800 pb-4">
       <div>
         <h1 class="text-2xl font-bold text-sky-400">CRM & App Ticket Analyzer</h1>
-        <p class="text-xs text-slate-400 mt-1">Upload ticket exports to review performance metrics and workload distribution.</p>
+        <p class="text-xs text-slate-400 mt-1">Upload ticket exports to review performance metrics or ask questions in natural language.</p>
       </div>
       <div class="flex items-center gap-3">
         <a href="anonymizer.html" class="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-sky-400 text-xs font-semibold px-4 py-2 rounded-lg border border-slate-700 transition-colors">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
           Open Data Anonymizer
         </a>
+      </div>
+    </div>
+
+    <!-- Gemini API Key Configuration Placeholder -->
+    <div class="bg-slate-800/30 p-4 rounded-xl border border-slate-700/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div class="space-y-0.5">
+        <label for="apiKey" class="text-xs font-semibold text-slate-300 uppercase tracking-wider block">Gemini API Key</label>
+        <p class="text-[11px] text-slate-400">Required for Natural Language Querying (Stored locally in your browser)</p>
+      </div>
+      <div class="w-full sm:w-80">
+        <!-- GEMINI API KEY PLACEHOLDER -->
+        <input 
+          type="password" 
+          id="apiKey" 
+          placeholder="AIzaSy..." 
+          onchange="saveApiKey()"
+          class="w-full px-3 py-1.5 text-xs bg-slate-900 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:border-sky-500 font-mono"
+        >
       </div>
     </div>
 
@@ -51,6 +69,34 @@
           Analyze Tickets
         </button>
       </div>
+    </div>
+
+    <!-- Natural Language Query Section -->
+    <div id="nlQueryContainer" class="bg-slate-800/50 p-6 rounded-xl border border-slate-700/50 space-y-3">
+      <label for="nlQuery" class="block text-xs font-semibold text-sky-400 uppercase tracking-wider">
+        Ask a Question (Natural Language Query)
+      </label>
+      <div class="flex gap-2">
+        <!-- NATURAL LANGUAGE INPUT PLACEHOLDER -->
+        <input 
+          type="text" 
+          id="nlQuery" 
+          placeholder="e.g., How many tickets are pending in CRM? or Summarize top issues..." 
+          class="flex-1 px-4 py-2.5 text-xs bg-slate-900 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:border-sky-500"
+        >
+        <button 
+          onclick="askGemini()" 
+          class="bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold px-5 py-2.5 rounded-lg text-xs transition-colors shrink-0"
+        >
+          Ask AI
+        </button>
+      </div>
+    </div>
+
+    <!-- AI Natural Language Response Display -->
+    <div id="aiResponseContainer" class="hidden bg-sky-950/20 border border-sky-800/50 p-6 rounded-xl space-y-2">
+      <h3 class="text-xs font-semibold text-sky-400 uppercase tracking-wider">Gemini Insights</h3>
+      <div id="aiResponseText" class="text-xs text-slate-200 whitespace-pre-wrap leading-relaxed font-sans"></div>
     </div>
 
     <!-- Status Output -->
@@ -92,6 +138,21 @@
   </div>
 
   <script>
+    let parsedTicketData = [];
+
+    // Auto-load API key from local storage on load
+    window.addEventListener('DOMContentLoaded', () => {
+      const savedKey = localStorage.getItem('gemini_api_key');
+      if (savedKey) {
+        document.getElementById('apiKey').value = savedKey;
+      }
+    });
+
+    function saveApiKey() {
+      const key = document.getElementById('apiKey').value.trim();
+      localStorage.setItem('gemini_api_key', key);
+    }
+
     async function analyzeExcel() {
       const fileInput = document.getElementById('excelFile');
       const status = document.getElementById('status');
@@ -123,7 +184,6 @@
           const firstSheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[firstSheetName];
           
-          // Convert sheet to array of arrays
           const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
 
           if (rows.length === 0) {
@@ -135,10 +195,17 @@
           const headers = rows[0];
           const dataRows = rows.slice(1);
 
-          // Metrics extraction
+          // Save globally for Gemini Natural Language queries
+          parsedTicketData = dataRows.map(r => {
+            let obj = {};
+            headers.forEach((h, idx) => {
+              if (h) obj[h] = r[idx];
+            });
+            return obj;
+          });
+
           const totalTickets = dataRows.length;
           
-          // Simple heuristic detection for assignees and customers based on header keywords
           let assigneeColIdx = headers.findIndex(h => /assignee|created|developer|lead|user|by|agent/i.test(String(h)));
           let customerColIdx = headers.findIndex(h => /customer|client|account|site|selection/i.test(String(h)));
 
@@ -150,16 +217,13 @@
             if (customerColIdx !== -1 && r[customerColIdx]) customers.add(String(r[customerColIdx]).trim());
           });
 
-          // Render Metrics
           document.getElementById('metricTotal').innerText = totalTickets.toLocaleString();
           document.getElementById('metricAssignees').innerText = assignees.size || 'N/A';
           document.getElementById('metricCustomers').innerText = customers.size || 'N/A';
           metricsContainer.classList.remove('hidden');
 
-          // Build Table Header
           tableHeader.innerHTML = '<tr>' + headers.map(h => `<th class="p-3">${escapeHtml(String(h))}</th>`).join('') + '</tr>';
 
-          // Build Table Body (Limit to 50 rows for preview performance)
           const previewRows = dataRows.slice(0, 50);
           tableBody.innerHTML = previewRows.map(row => {
             return '<tr class="hover:bg-slate-800/50 transition-colors">' +
@@ -179,6 +243,62 @@
       };
 
       reader.readAsArrayBuffer(file);
+    }
+
+    async function askGemini() {
+      const apiKey = document.getElementById('apiKey').value.trim();
+      const query = document.getElementById('nlQuery').value.trim();
+      const responseContainer = document.getElementById('aiResponseContainer');
+      const responseText = document.getElementById('aiResponseText');
+
+      if (!apiKey) {
+        alert('Please enter your Gemini API Key first.');
+        return;
+      }
+
+      if (!query) {
+        alert('Please enter a question to query your dataset.');
+        return;
+      }
+
+      if (parsedTicketData.length === 0) {
+        alert('Please upload and analyze an Excel file first so Gemini has data to analyze.');
+        return;
+      }
+
+      responseContainer.classList.remove('hidden');
+      responseText.innerText = 'Thinking and analyzing dataset...';
+
+      // Limit payload to first 200 rows to keep token counts manageable
+      const sampleData = parsedTicketData.slice(0, 200);
+
+      const prompt = `You are a data analyst assisting an IT leader. Answer the following question based on the dataset provided below.
+      
+Question: ${query}
+
+Dataset (JSON Array of Ticket Records):
+${JSON.stringify(sampleData, null, 2)}`;
+
+      try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }]
+          })
+        });
+
+        const result = await response.json();
+
+        if (result.error) {
+          responseText.innerText = 'Error from Gemini API: ' + result.error.message;
+        } else {
+          const answer = result.candidates[0].content.parts[0].text;
+          responseText.innerText = answer;
+        }
+      } catch (err) {
+        responseText.innerText = 'Failed to fetch response from Gemini: ' + err.message;
+      }
     }
 
     function escapeHtml(str) {
