@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Excel Data Anonymizer & Redactor</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- SheetJS for parsing and building Excel files client-side -->
+  <!-- SheetJS with formatting parsing enabled -->
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <style>
     body { background-color: #0f172a; color: #f8fafc; }
@@ -14,7 +14,7 @@
 <body class="p-6 font-sans">
   <div class="max-w-4xl mx-auto space-y-6">
     
-    <!-- Navigation back to main app -->
+    <!-- Navigation -->
     <div>
       <a href="index.html" class="inline-flex items-center gap-2 text-xs text-slate-400 hover:text-sky-400 transition-colors">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
@@ -25,7 +25,7 @@
     <!-- Header -->
     <header class="border-b border-slate-800 pb-4">
       <h1 class="text-2xl font-bold text-sky-400">Excel Data Anonymizer</h1>
-      <p class="text-xs text-slate-400 mt-1">Consistent client-side masking for names, numbers, passwords, emails, and locations. (Dates & Times preserved)</p>
+      <p class="text-xs text-slate-400 mt-1">Strict client-side masking for names and numbers. Dates and timestamps are 100% protected.</p>
     </header>
 
     <!-- Upload Zone -->
@@ -54,7 +54,7 @@
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
         <span>Redaction Complete!</span>
       </div>
-      <p class="text-xs text-slate-300">Data scrubbed with 1:1 mapping consistency. All dates and timestamps have been left completely intact.</p>
+      <p class="text-xs text-slate-300">Data scrubbed with 1:1 mapping consistency. Dates and time values were preserved without any changes.</p>
       <div class="pt-2">
         <a id="downloadLink" href="#" class="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold px-5 py-2.5 rounded-lg text-sm transition-colors">
           Download Anonymized File (.xlsx)
@@ -65,11 +65,9 @@
   </div>
 
   <script>
-    // Pool of realistic sample names
     const FIRST_NAMES = ["Alex", "Jordan", "Taylor", "Morgan", "Sam", "Chris", "Pat", "Devon", "Casey", "Riley", "Jamie", "Avery", "Dakota", "Reese", "Quinn", "Skyler", "Cameron", "Rowan"];
     const LAST_NAMES = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson", "Thomas", "Taylor", "Moore"];
 
-    // Masking Engine with Stateful Dictionary & Date Guards
     const Redactor = {
       mappings: {
         names: new Map(),
@@ -81,16 +79,8 @@
         passwords: ['password', 'pass', 'pwd', 'token', 'secret', 'key'],
         phones: ['phone', 'mobile', 'contact', 'cell', 'fax', 'tel'],
         locations: ['address', 'location', 'city', 'state', 'country', 'zip', 'street', 'place', 'site'],
-        dates: ['date', 'time', 'created', 'updated', 'timestamp', 'due', 'opened', 'closed', 'resolved', 'dob']
+        dates: ['date', 'time', 'created', 'updated', 'timestamp', 'due', 'opened', 'closed', 'resolved', 'dob', 'at', 'on', 'month', 'year', 'day']
       },
-
-      // Regex patterns to identify date and time formats in text strings
-      datePatterns: [
-        /^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}/,                       // 2026-07-27, 2026/07/27
-        /^\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}/,                       // 07/27/2026, 27-07-2026
-        /^\d{1,2}:\d{2}(:\d{2})?\s*(AM|PM|am|pm)?/,               // 14:04:12, 02:04 PM
-        /^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i    // Jul 27, 2026
-      ],
 
       resetState() {
         this.mappings.names.clear();
@@ -101,22 +91,39 @@
         return arr[Math.floor(Math.random() * arr.length)];
       },
 
+      // Comprehensive multi-layer Date/Time check
       isDateTime(cell, headerName) {
+        if (!cell) return false;
+
+        // 1. Check native JavaScript Date objects or SheetJS date type ('d')
+        if (cell.v instanceof Date || cell.t === 'd') {
+          return true;
+        }
+
         const normHeader = (headerName || '').toLowerCase().trim();
 
-        // 1. Native Excel Date Objects / Date formats
-        if (cell.t === 'd' || (cell.z && /m\/d|yy|hh:mm/i.test(cell.z))) {
+        // 2. Strict Column Header Matching (if header is date-related, skip whole column)
+        if (this.sensitiveHeaders.dates.some(d => normHeader === d || normHeader.includes(d))) {
           return true;
         }
 
-        // 2. Column Header indicates date/time
-        if (this.sensitiveHeaders.dates.some(d => normHeader.includes(d))) {
+        // 3. Inspect Excel's internal cell formatting string (cell.z or cell.w)
+        const formatStr = (cell.z || '').toLowerCase();
+        if (/[yy|mm|dd|hh|ss|m\/d|d\/m]/i.test(formatStr)) {
           return true;
         }
 
-        // 3. String Regex match for date/time patterns
-        const stringVal = String(cell.v).trim();
-        return this.datePatterns.some(pattern => pattern.test(stringVal));
+        // 4. String Pattern Regex matching for formatted dates & times
+        const stringVal = String(cell.w || cell.v).trim();
+        
+        const isDateString = 
+          /^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}/.test(stringVal) ||                     // 2026-07-27, 2026/07/27
+          /^\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}/.test(stringVal) ||                     // 07/27/2026, 27/07/26
+          /^\d{1,2}:\d{2}(:\d{2})?(\s*(AM|PM|am|pm))?/.test(stringVal) ||           // 14:04:12, 02:04 PM
+          /^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(stringVal) ||  // Jul 27, 2026
+          /\d{1,2}\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(stringVal); // 27 Jul 2026
+
+        return isDateString;
       },
 
       scrambleNumbersConsistent(text) {
@@ -146,7 +153,7 @@
       maskCell(cell, headerName) {
         if (!cell || cell.v === null || cell.v === undefined || cell.v === '') return cell.v;
 
-        // SKIP ANONYMIZATION IF IT IS A DATE OR TIMESTAMP
+        // SAFEGUARD: IMMEDIATELY RETURN ORIGINAL VALUE IF IT'S A DATE OR TIME
         if (this.isDateTime(cell, headerName)) {
           return cell.v;
         }
@@ -169,7 +176,7 @@
           return this.scrambleNumbersConsistent(stringVal);
         }
 
-        // 4. Numeric Values or Embedded Numbers (excluding verified dates)
+        // 4. Numeric Values or Embedded Numbers
         if (typeof cell.v === 'number' || /\d/.test(stringVal)) {
           const scrambled = this.scrambleNumbersConsistent(stringVal);
           return typeof cell.v === 'number' ? Number(scrambled) : scrambled;
@@ -204,8 +211,14 @@
       reader.onload = function(e) {
         try {
           const data = new Uint8Array(e.target.result);
-          // cellDates: true ensures SheetJS parses Excel date formats cleanly
-          const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+          
+          // Read with full formatting metadata enabled (cellNF & cellDates)
+          const workbook = XLSX.read(data, { 
+            type: 'array', 
+            cellDates: true, 
+            cellNF: true, 
+            cellText: true 
+          });
           
           let cellsModified = 0;
 
@@ -247,7 +260,7 @@
           downloadLink.download = fileName;
 
           statusText.innerText = 'File successfully anonymized!';
-          statsText.innerText = `${cellsModified} values anonymized (Dates & timestamps kept unchanged).`;
+          statsText.innerText = `${cellsModified} values anonymized (All dates & timestamps were preserved).`;
           downloadContainer.classList.remove('hidden');
 
         } catch (err) {
