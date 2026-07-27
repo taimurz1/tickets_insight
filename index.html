@@ -1,24 +1,194 @@
-<!-- Upload Zone -->
-<div class="bg-slate-800/50 p-6 rounded-xl border border-slate-700/50 space-y-4">
-  <div>
-    <label for="excelFile" class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
-      Select Excel File (.xlsx, .xls, .xlsm, .csv)
-    </label>
-    <input 
-      type="file" 
-      id="excelFile" 
-      accept=".xlsx, .xls, .xlsm, .xlsb, .csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" 
-      class="block w-full text-sm text-slate-400 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-sky-500/10 file:text-sky-400 hover:file:bg-sky-500/20 cursor-pointer border border-slate-700 rounded-lg bg-slate-900/50"
-    >
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ticket Analyzer & Operations Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- SheetJS for client-side Excel parsing -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <style>
+    body { background-color: #0f172a; color: #f8fafc; }
+  </style>
+</head>
+<body class="p-6 font-sans">
+  <div class="max-w-5xl mx-auto space-y-6">
+    
+    <!-- Top Navigation / Toolbar -->
+    <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+      <div>
+        <h1 class="text-2xl font-bold text-sky-400">CRM & App Ticket Analyzer</h1>
+        <p class="text-xs text-slate-400 mt-1">Upload ticket exports to review performance metrics and workload distribution.</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <a href="anonymizer.html" class="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-sky-400 text-xs font-semibold px-4 py-2 rounded-lg border border-slate-700 transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+          Open Data Anonymizer
+        </a>
+      </div>
+    </div>
+
+    <!-- Upload Zone -->
+    <div class="bg-slate-800/50 p-6 rounded-xl border border-slate-700/50 space-y-4">
+      <div>
+        <label for="excelFile" class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+          Select Ticket Data Spreadsheet (.xlsx, .xls, .xlsm, .csv)
+        </label>
+        <input 
+          type="file" 
+          id="excelFile" 
+          accept=".xlsx, .xls, .xlsm, .xlsb, .csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel, text/csv" 
+          class="block w-full text-sm text-slate-400 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-sky-500/10 file:text-sky-400 hover:file:bg-sky-500/20 cursor-pointer border border-slate-700 rounded-lg bg-slate-900/50"
+        >
+      </div>
+
+      <div class="flex items-center gap-3 pt-2">
+        <button 
+          id="processBtn" 
+          onclick="analyzeExcel()" 
+          class="bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold px-5 py-2.5 rounded-lg text-sm transition-colors"
+        >
+          Analyze Tickets
+        </button>
+      </div>
+    </div>
+
+    <!-- Status Output -->
+    <div id="status" class="hidden text-xs text-sky-400 bg-sky-950/30 border border-sky-900/50 p-4 rounded-lg flex items-center justify-between">
+      <span id="statusText">Reading file...</span>
+      <span id="statsText" class="text-slate-400 font-mono"></span>
+    </div>
+
+    <!-- Summary Metrics Dashboard -->
+    <div id="metricsContainer" class="hidden grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="bg-slate-800/30 border border-slate-700/50 p-4 rounded-xl space-y-1">
+        <span class="text-xs text-slate-400 font-semibold uppercase">Total Tickets</span>
+        <div id="metricTotal" class="text-2xl font-bold text-slate-100">0</div>
+      </div>
+      <div class="bg-slate-800/30 border border-slate-700/50 p-4 rounded-xl space-y-1">
+        <span class="text-xs text-slate-400 font-semibold uppercase">Unique Reverters / Assignees</span>
+        <div id="metricAssignees" class="text-2xl font-bold text-sky-400">0</div>
+      </div>
+      <div class="bg-slate-800/30 border border-slate-700/50 p-4 rounded-xl space-y-1">
+        <span class="text-xs text-slate-400 font-semibold uppercase">Unique Customers / Sites</span>
+        <div id="metricCustomers" class="text-2xl font-bold text-emerald-400">0</div>
+      </div>
+    </div>
+
+    <!-- Ticket Preview Table -->
+    <div id="tableContainer" class="hidden bg-slate-800/30 border border-slate-700/50 rounded-xl overflow-hidden">
+      <div class="p-4 border-b border-slate-700/50 flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-slate-200">Ticket Preview (First 50 Rows)</h2>
+        <span class="text-xs text-slate-400">Client-side Processed</span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs text-slate-300">
+          <thead id="tableHeader" class="bg-slate-900/60 text-slate-400 uppercase font-semibold border-b border-slate-700/50"></thead>
+          <tbody id="tableBody" class="divide-y divide-slate-800"></tbody>
+        </table>
+      </div>
+    </div>
+
   </div>
 
-  <div class="flex items-center gap-3 pt-2">
-    <button 
-      id="processBtn" 
-      onclick="analyzeExcel()" 
-      class="bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold px-5 py-2.5 rounded-lg text-sm transition-colors"
-    >
-      Analyze Data
-    </button>
-  </div>
-</div>
+  <script>
+    async function analyzeExcel() {
+      const fileInput = document.getElementById('excelFile');
+      const status = document.getElementById('status');
+      const statusText = document.getElementById('statusText');
+      const statsText = document.getElementById('statsText');
+      const metricsContainer = document.getElementById('metricsContainer');
+      const tableContainer = document.getElementById('tableContainer');
+      const tableHeader = document.getElementById('tableHeader');
+      const tableBody = document.getElementById('tableBody');
+
+      if (!fileInput.files.length) {
+        alert('Please select an Excel or CSV file first.');
+        return;
+      }
+
+      const file = fileInput.files[0];
+      status.classList.remove('hidden');
+      metricsContainer.classList.add('hidden');
+      tableContainer.classList.add('hidden');
+      statusText.innerText = 'Parsing spreadsheet data...';
+
+      const reader = new FileReader();
+
+      reader.onload = function(e) {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array', cellDates: true, cellNF: true, cellText: true });
+
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          
+          // Convert sheet to array of arrays
+          const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+
+          if (rows.length === 0) {
+            alert('Selected sheet appears to be empty.');
+            status.classList.add('hidden');
+            return;
+          }
+
+          const headers = rows[0];
+          const dataRows = rows.slice(1);
+
+          // Metrics extraction
+          const totalTickets = dataRows.length;
+          
+          // Simple heuristic detection for assignees and customers based on header keywords
+          let assigneeColIdx = headers.findIndex(h => /assignee|created|developer|lead|user|by|agent/i.test(String(h)));
+          let customerColIdx = headers.findIndex(h => /customer|client|account|site|selection/i.test(String(h)));
+
+          const assignees = new Set();
+          const customers = new Set();
+
+          dataRows.forEach(r => {
+            if (assigneeColIdx !== -1 && r[assigneeColIdx]) assignees.add(String(r[assigneeColIdx]).trim());
+            if (customerColIdx !== -1 && r[customerColIdx]) customers.add(String(r[customerColIdx]).trim());
+          });
+
+          // Render Metrics
+          document.getElementById('metricTotal').innerText = totalTickets.toLocaleString();
+          document.getElementById('metricAssignees').innerText = assignees.size || 'N/A';
+          document.getElementById('metricCustomers').innerText = customers.size || 'N/A';
+          metricsContainer.classList.remove('hidden');
+
+          // Build Table Header
+          tableHeader.innerHTML = '<tr>' + headers.map(h => `<th class="p-3">${escapeHtml(String(h))}</th>`).join('') + '</tr>';
+
+          // Build Table Body (Limit to 50 rows for preview performance)
+          const previewRows = dataRows.slice(0, 50);
+          tableBody.innerHTML = previewRows.map(row => {
+            return '<tr class="hover:bg-slate-800/50 transition-colors">' +
+              headers.map((_, colIdx) => `<td class="p-3 whitespace-nowrap">${escapeHtml(String(row[colIdx] !== undefined ? row[colIdx] : ''))}</td>`).join('') +
+              '</tr>';
+          }).join('');
+
+          tableContainer.classList.remove('hidden');
+
+          statusText.innerText = 'Analysis Complete!';
+          statsText.innerText = `Loaded ${totalTickets} rows from ${file.name}`;
+
+        } catch (err) {
+          alert('Failed to parse spreadsheet file: ' + err.message);
+          status.classList.add('hidden');
+        }
+      };
+
+      reader.readAsArrayBuffer(file);
+    }
+
+    function escapeHtml(str) {
+      return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+  </script>
+</body>
+</html>
