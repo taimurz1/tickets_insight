@@ -25,7 +25,7 @@
     <!-- Header -->
     <header class="border-b border-slate-800 pb-4">
       <h1 class="text-2xl font-bold text-sky-400">Excel Data Anonymizer</h1>
-      <p class="text-xs text-slate-400 mt-1">Strict client-side masking for names and numbers. Dates and timestamps are 100% protected.</p>
+      <p class="text-xs text-slate-400 mt-1">Deep client-side masking for names in all columns while preserving dates and timestamps 100%.</p>
     </header>
 
     <!-- Upload Zone -->
@@ -54,7 +54,7 @@
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
         <span>Redaction Complete!</span>
       </div>
-      <p class="text-xs text-slate-300">Data scrubbed with 1:1 mapping consistency. Dates and time values were preserved without any changes.</p>
+      <p class="text-xs text-slate-300">Data scrubbed across all columns with 1:1 mapping consistency. Dates and times preserved intact.</p>
       <div class="pt-2">
         <a id="downloadLink" href="#" class="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold px-5 py-2.5 rounded-lg text-sm transition-colors">
           Download Anonymized File (.xlsx)
@@ -75,7 +75,8 @@
       },
 
       sensitiveHeaders: {
-        names: ['name', 'first name', 'last name', 'full name', 'user', 'username', 'employee', 'created by', 'assigned to', 'author', 'reporter', 'owner'],
+        // Expanded header keywords for comprehensive name identification
+        names: ['name', 'user', 'employee', 'created', 'assigned', 'author', 'reporter', 'owner', 'lead', 'assignee', 'contact', 'person', 'member', 'by', 'agent', 'manager', 'developer', 'qa', 'submitter', 'caller', 'client'],
         passwords: ['password', 'pass', 'pwd', 'token', 'secret', 'key'],
         phones: ['phone', 'mobile', 'contact', 'cell', 'fax', 'tel'],
         locations: ['address', 'location', 'city', 'state', 'country', 'zip', 'street', 'place', 'site'],
@@ -91,7 +92,6 @@
         return arr[Math.floor(Math.random() * arr.length)];
       },
 
-      // Comprehensive multi-layer Date/Time check
       isDateTime(cell, headerName) {
         if (!cell) return false;
 
@@ -102,12 +102,12 @@
 
         const normHeader = (headerName || '').toLowerCase().trim();
 
-        // 2. Strict Column Header Matching (if header is date-related, skip whole column)
+        // 2. Strict Column Header Matching
         if (this.sensitiveHeaders.dates.some(d => normHeader === d || normHeader.includes(d))) {
           return true;
         }
 
-        // 3. Inspect Excel's internal cell formatting string (cell.z or cell.w)
+        // 3. Inspect Excel's internal cell formatting string
         const formatStr = (cell.z || '').toLowerCase();
         if (/[yy|mm|dd|hh|ss|m\/d|d\/m]/i.test(formatStr)) {
           return true;
@@ -116,14 +116,20 @@
         // 4. String Pattern Regex matching for formatted dates & times
         const stringVal = String(cell.w || cell.v).trim();
         
-        const isDateString = 
-          /^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}/.test(stringVal) ||                     // 2026-07-27, 2026/07/27
-          /^\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}/.test(stringVal) ||                     // 07/27/2026, 27/07/26
-          /^\d{1,2}:\d{2}(:\d{2})?(\s*(AM|PM|am|pm))?/.test(stringVal) ||           // 14:04:12, 02:04 PM
-          /^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(stringVal) ||  // Jul 27, 2026
-          /\d{1,2}\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(stringVal); // 27 Jul 2026
+        return (
+          /^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}/.test(stringVal) ||
+          /^\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}/.test(stringVal) ||
+          /^\d{1,2}:\d{2}(:\d{2})?(\s*(AM|PM|am|pm))?/.test(stringVal) ||
+          /^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(stringVal) ||
+          /\d{1,2}\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(stringVal)
+        );
+      },
 
-        return isDateString;
+      // Fallback check: determines if a text string looks like a personal name (e.g., "John Smith" or "Alice M. Walker")
+      isNamePattern(str) {
+        const cleaned = str.trim();
+        // Matches 1 to 3 capitalized words, avoiding long sentences or IDs
+        return /^[A-Z][a-z]+(\s+[A-Z][a-z]+){1,2}$/.test(cleaned);
       },
 
       scrambleNumbersConsistent(text) {
@@ -159,20 +165,21 @@
         }
 
         const normHeader = (headerName || '').toLowerCase().trim();
-        const stringVal = String(cell.v);
+        const stringVal = String(cell.v).trim();
 
         // 1. Password Redaction
-        if (this.sensitiveHeaders.passwords.includes(normHeader)) {
+        if (this.sensitiveHeaders.passwords.some(p => normHeader.includes(p))) {
           return '●●●●●●●●';
         }
 
-        // 2. Name Redaction (Consistent 1:1 mapping)
-        if (this.sensitiveHeaders.names.includes(normHeader)) {
+        // 2. Name Redaction (Header-based or Pattern-based)
+        const isNameHeader = this.sensitiveHeaders.names.some(n => normHeader.includes(n));
+        if (isNameHeader || this.isNamePattern(stringVal)) {
           return this.generateRandomNameConsistent(stringVal);
         }
 
         // 3. Phone/Location Header-based Scrambling
-        if (this.sensitiveHeaders.phones.includes(normHeader) || this.sensitiveHeaders.locations.includes(normHeader)) {
+        if (this.sensitiveHeaders.phones.some(p => normHeader.includes(p)) || this.sensitiveHeaders.locations.some(l => normHeader.includes(l))) {
           return this.scrambleNumbersConsistent(stringVal);
         }
 
@@ -212,7 +219,6 @@
         try {
           const data = new Uint8Array(e.target.result);
           
-          // Read with full formatting metadata enabled (cellNF & cellDates)
           const workbook = XLSX.read(data, { 
             type: 'array', 
             cellDates: true, 
@@ -260,7 +266,7 @@
           downloadLink.download = fileName;
 
           statusText.innerText = 'File successfully anonymized!';
-          statsText.innerText = `${cellsModified} values anonymized (All dates & timestamps were preserved).`;
+          statsText.innerText = `${cellsModified} values anonymized across all columns.`;
           downloadContainer.classList.remove('hidden');
 
         } catch (err) {
