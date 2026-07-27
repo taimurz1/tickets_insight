@@ -31,11 +31,19 @@
     <!-- Gemini API Key Configuration Placeholder -->
     <div class="bg-slate-800/30 p-4 rounded-xl border border-slate-700/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
       <div class="space-y-0.5">
-        <label for="apiKey" class="text-xs font-semibold text-slate-300 uppercase tracking-wider block">Gemini API Key</label>
+        <div class="flex items-center gap-2">
+          <label for="apiKey" class="text-xs font-semibold text-slate-300 uppercase tracking-wider block">Gemini API Key</label>
+          <button 
+            type="button" 
+            onclick="openApiKeyModal()" 
+            class="text-[11px] text-sky-400 hover:text-sky-300 underline font-medium cursor-pointer"
+          >
+            How to get a key?
+          </button>
+        </div>
         <p class="text-[11px] text-slate-400">Required for Natural Language Querying (Stored locally in your browser)</p>
       </div>
       <div class="w-full sm:w-80">
-        <!-- GEMINI API KEY PLACEHOLDER -->
         <input 
           type="password" 
           id="apiKey" 
@@ -77,7 +85,6 @@
         Ask a Question (Natural Language Query)
       </label>
       <div class="flex gap-2">
-        <!-- NATURAL LANGUAGE INPUT PLACEHOLDER -->
         <input 
           type="text" 
           id="nlQuery" 
@@ -137,6 +144,67 @@
 
   </div>
 
+  <!-- API KEY GUIDANCE MODAL -->
+  <div 
+    id="apiKeyModal" 
+    class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+    onclick="closeApiKeyModalOnBackdrop(event)"
+  >
+    <div class="bg-slate-900 border border-slate-700 rounded-xl p-6 max-w-lg w-full space-y-5 relative shadow-2xl">
+      
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="text-sm font-semibold text-sky-400 uppercase tracking-wider">How to Get a Gemini API Key</h3>
+        <button 
+          onclick="closeApiKeyModal()" 
+          class="text-slate-400 hover:text-slate-200 text-lg leading-none cursor-pointer"
+        >
+          &times;
+        </button>
+      </div>
+
+      <!-- Modal Steps -->
+      <div class="space-y-3 text-xs text-slate-300">
+        <div class="flex gap-3 items-start">
+          <span class="bg-sky-500/10 text-sky-400 border border-sky-500/20 rounded-full w-5 h-5 flex items-center justify-center shrink-0 font-bold text-[10px]">1</span>
+          <p>Go to <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold">Google AI Studio (aistudio.google.com)</a> and sign in with your Google Account.</p>
+        </div>
+
+        <div class="flex gap-3 items-start">
+          <span class="bg-sky-500/10 text-sky-400 border border-sky-500/20 rounded-full w-5 h-5 flex items-center justify-center shrink-0 font-bold text-[10px]">2</span>
+          <p>Click on the <strong class="text-slate-100">"Create API key"</strong> button.</p>
+        </div>
+
+        <div class="flex gap-3 items-start">
+          <span class="bg-sky-500/10 text-sky-400 border border-sky-500/20 rounded-full w-5 h-5 flex items-center justify-center shrink-0 font-bold text-[10px]">3</span>
+          <p>Select a Google Cloud project or create a new one automatically when prompted.</p>
+        </div>
+
+        <div class="flex gap-3 items-start">
+          <span class="bg-sky-500/10 text-sky-400 border border-sky-500/20 rounded-full w-5 h-5 flex items-center justify-center shrink-0 font-bold text-[10px]">4</span>
+          <p>Copy your generated key (starts with <code class="bg-slate-800 text-sky-300 px-1 py-0.5 rounded font-mono">AIzaSy...</code>) and paste it into the field on this page.</p>
+        </div>
+      </div>
+
+      <!-- Note / Security Disclaimer -->
+      <div class="bg-slate-800/50 border border-slate-700/50 p-3 rounded-lg text-[11px] text-slate-400 space-y-1">
+        <p class="font-semibold text-slate-300">Privacy & Local Storage:</p>
+        <p>Your key is stored strictly inside your own browser's local storage (<code class="font-mono">localStorage</code>) and is never sent to any external server other than Google's official Gemini API endpoints.</p>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="pt-2 flex justify-end">
+        <button 
+          onclick="closeApiKeyModal()" 
+          class="bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold px-4 py-2 rounded-lg text-xs transition-colors"
+        >
+          Got it
+        </button>
+      </div>
+
+    </div>
+  </div>
+
   <script>
     let parsedTicketData = [];
 
@@ -151,6 +219,21 @@
     function saveApiKey() {
       const key = document.getElementById('apiKey').value.trim();
       localStorage.setItem('gemini_api_key', key);
+    }
+
+    // Modal Handlers
+    function openApiKeyModal() {
+      document.getElementById('apiKeyModal').classList.remove('hidden');
+    }
+
+    function closeApiKeyModal() {
+      document.getElementById('apiKeyModal').classList.add('hidden');
+    }
+
+    function closeApiKeyModalOnBackdrop(e) {
+      if (e.target.id === 'apiKeyModal') {
+        closeApiKeyModal();
+      }
     }
 
     async function analyzeExcel() {
