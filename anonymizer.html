@@ -25,7 +25,7 @@
     <!-- Header -->
     <header class="border-b border-slate-800 pb-4">
       <h1 class="text-2xl font-bold text-sky-400">Excel Data Anonymizer</h1>
-      <p class="text-xs text-slate-400 mt-1">Deep client-side masking for names in all columns while preserving dates and timestamps 100%.</p>
+      <p class="text-xs text-slate-400 mt-1">Deep client-side masking for names, customers, and creators. Dates & times remain 100% untouched.</p>
     </header>
 
     <!-- Upload Zone -->
@@ -54,7 +54,7 @@
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
         <span>Redaction Complete!</span>
       </div>
-      <p class="text-xs text-slate-300">Data scrubbed across all columns with 1:1 mapping consistency. Dates and times preserved intact.</p>
+      <p class="text-xs text-slate-300">Data scrubbed across all columns (including Created By and Customer fields) with 1:1 mapping consistency. Dates and times preserved intact.</p>
       <div class="pt-2">
         <a id="downloadLink" href="#" class="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold px-5 py-2.5 rounded-lg text-sm transition-colors">
           Download Anonymized File (.xlsx)
@@ -67,24 +67,29 @@
   <script>
     const FIRST_NAMES = ["Alex", "Jordan", "Taylor", "Morgan", "Sam", "Chris", "Pat", "Devon", "Casey", "Riley", "Jamie", "Avery", "Dakota", "Reese", "Quinn", "Skyler", "Cameron", "Rowan"];
     const LAST_NAMES = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson", "Thomas", "Taylor", "Moore"];
+    const COMPANY_PREFIXES = ["Apex", "Vertex", "Nexus", "Horizon", "Global", "Omni", "Summit", "Vanguard", "Pinnacle", "Aero"];
+    const COMPANY_SUFFIXES = ["Corp", "Inc", "Solutions", "Holdings", "Enterprises", "Logistics", "Tech", "Partners"];
 
     const Redactor = {
       mappings: {
         names: new Map(),
+        customers: new Map(),
         values: new Map()
       },
 
       sensitiveHeaders: {
-        // Expanded header keywords for comprehensive name identification
-        names: ['name', 'user', 'employee', 'created', 'assigned', 'author', 'reporter', 'owner', 'lead', 'assignee', 'contact', 'person', 'member', 'by', 'agent', 'manager', 'developer', 'qa', 'submitter', 'caller', 'client'],
+        // Explicit keywords including "created", "by", "customer", "selection"
+        names: ['name', 'user', 'employee', 'created', 'assigned', 'author', 'reporter', 'owner', 'lead', 'assignee', 'contact', 'person', 'member', 'by', 'agent', 'manager', 'developer', 'qa', 'submitter', 'caller', 'who'],
+        customers: ['customer', 'client', 'account', 'vendor', 'buyer', 'selection', 'company', 'organization', 'org'],
         passwords: ['password', 'pass', 'pwd', 'token', 'secret', 'key'],
         phones: ['phone', 'mobile', 'contact', 'cell', 'fax', 'tel'],
         locations: ['address', 'location', 'city', 'state', 'country', 'zip', 'street', 'place', 'site'],
-        dates: ['date', 'time', 'created', 'updated', 'timestamp', 'due', 'opened', 'closed', 'resolved', 'dob', 'at', 'on', 'month', 'year', 'day']
+        dates: ['date', 'time', 'created at', 'created on', 'updated', 'timestamp', 'due', 'opened', 'closed', 'resolved', 'dob', 'at', 'on', 'month', 'year', 'day']
       },
 
       resetState() {
         this.mappings.names.clear();
+        this.mappings.customers.clear();
         this.mappings.values.clear();
       },
 
@@ -102,9 +107,11 @@
 
         const normHeader = (headerName || '').toLowerCase().trim();
 
-        // 2. Strict Column Header Matching
-        if (this.sensitiveHeaders.dates.some(d => normHeader === d || normHeader.includes(d))) {
-          return true;
+        // 2. Exact or explicit header match for date columns (avoiding false positives like "created by")
+        if (normHeader === 'date' || normHeader === 'time' || normHeader === 'timestamp' || normHeader.includes('date') || normHeader.includes('time')) {
+          if (!normHeader.includes('by') && !normHeader.includes('user') && !normHeader.includes('name')) {
+            return true;
+          }
         }
 
         // 3. Inspect Excel's internal cell formatting string
@@ -125,10 +132,8 @@
         );
       },
 
-      // Fallback check: determines if a text string looks like a personal name (e.g., "John Smith" or "Alice M. Walker")
       isNamePattern(str) {
         const cleaned = str.trim();
-        // Matches 1 to 3 capitalized words, avoiding long sentences or IDs
         return /^[A-Z][a-z]+(\s+[A-Z][a-z]+){1,2}$/.test(cleaned);
       },
 
@@ -156,6 +161,17 @@
         return fakeName;
       },
 
+      generateRandomCustomerConsistent(originalText) {
+        const key = String(originalText).trim();
+        if (this.mappings.customers.has(key)) {
+          return this.mappings.customers.get(key);
+        }
+
+        const fakeCustomer = `${this.getRandomElement(COMPANY_PREFIXES)} ${this.getRandomElement(COMPANY_SUFFIXES)}`;
+        this.mappings.customers.set(key, fakeCustomer);
+        return fakeCustomer;
+      },
+
       maskCell(cell, headerName) {
         if (!cell || cell.v === null || cell.v === undefined || cell.v === '') return cell.v;
 
@@ -172,18 +188,28 @@
           return '●●●●●●●●';
         }
 
-        // 2. Name Redaction (Header-based or Pattern-based)
+        // 2. Customer / Organization / Selection Header Match
+        const isCustomerHeader = this.sensitiveHeaders.customers.some(c => normHeader.includes(c));
+        if (isCustomerHeader) {
+          // If it contains numbers, scramble them; otherwise replace with a consistent synthetic customer name
+          if (/\d/.test(stringVal) && !/[a-zA-Z]/.test(stringVal)) {
+            return this.scrambleNumbersConsistent(stringVal);
+          }
+          return this.generateRandomCustomerConsistent(stringVal);
+        }
+
+        // 3. Name / Created By / Author Header Match
         const isNameHeader = this.sensitiveHeaders.names.some(n => normHeader.includes(n));
         if (isNameHeader || this.isNamePattern(stringVal)) {
           return this.generateRandomNameConsistent(stringVal);
         }
 
-        // 3. Phone/Location Header-based Scrambling
+        // 4. Phone/Location Header-based Scrambling
         if (this.sensitiveHeaders.phones.some(p => normHeader.includes(p)) || this.sensitiveHeaders.locations.some(l => normHeader.includes(l))) {
           return this.scrambleNumbersConsistent(stringVal);
         }
 
-        // 4. Numeric Values or Embedded Numbers
+        // 5. Numeric Values or Embedded Numbers
         if (typeof cell.v === 'number' || /\d/.test(stringVal)) {
           const scrambled = this.scrambleNumbersConsistent(stringVal);
           return typeof cell.v === 'number' ? Number(scrambled) : scrambled;
