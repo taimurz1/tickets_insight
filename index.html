@@ -14,11 +14,19 @@
   <div class="max-w-6xl mx-auto space-y-6">
     
     <!-- Header -->
-    <header class="flex justify-between items-center border-b border-slate-800 pb-4">
+    <header class="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-800 pb-4 gap-4">
       <div>
-        <h1 class="text-2xl font-bold text-sky-400">Ticket Insight Analyzer</h1>
+        <div class="flex items-center gap-3">
+          <h1 class="text-2xl font-bold text-sky-400">Ticket Insight Analyzer</h1>
+          <!-- Link to Anonymizer Tool -->
+          <a href="anonymizer.html" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-1 rounded-full transition-colors flex items-center gap-1">
+            <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+            Anonymize Data First
+          </a>
+        </div>
         <p class="text-xs text-slate-400 mt-1">Client-side AI Data Analysis • Google Gemini Integration</p>
       </div>
+
       <div class="flex items-center space-x-3">
         <label for="apiKey" class="text-xs text-slate-400">Gemini API Key:</label>
         <input type="password" id="apiKey" placeholder="AIzaSy..." class="bg-slate-800 text-sm px-3 py-1.5 rounded border border-slate-700 text-slate-200 focus:outline-none focus:border-sky-500 w-64">
