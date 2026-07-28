@@ -144,19 +144,19 @@
       </div>
       
       <div class="p-6">
-        <div id="aiLoadingContainer" class="space-y-4 py-2">
-          <div class="flex items-center justify-between text-xs">
-            <span id="aiProgressText" class="font-semibold text-slate-700 flex items-center gap-2">
-              <svg class="animate-spin h-4 w-4 text-[#008744]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              <span>Connecting to Gemini API...</span>
-            </span>
+        <!-- Explicit Loading Indicator -->
+        <div id="aiLoadingContainer" class="py-4">
+          <div class="flex items-center gap-3 text-xs text-slate-700 font-semibold">
+            <svg class="animate-spin h-5 w-5 text-[#008744]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span id="aiProgressText">Analyzing ticket dataset with Gemini...</span>
           </div>
         </div>
 
-        <div id="aiResponseText" class="hidden markdown-content text-xs text-slate-700 leading-relaxed space-y-2"></div>
+        <!-- Rendered AI Response Output -->
+        <div id="aiResponseText" style="display: none;" class="markdown-content text-xs text-slate-700 leading-relaxed space-y-2"></div>
       </div>
     </div>
 
@@ -368,11 +368,7 @@
       reader.readAsArrayBuffer(file);
     }
 
-    /**
-     * Helper to perform Gemini API calls for a given model name
-     */
     async function callGeminiModel(modelName, apiKey, prompt) {
-      // Strip any unwanted prefix
       const cleanModel = modelName.replace(/^models\//, '');
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${apiKey}`, {
         method: 'POST',
@@ -396,23 +392,16 @@
       return result;
     }
 
-    /**
-     * Dynamically queries available models from Google AI Studio as ultimate fallback
-     */
     async function getAvailableModel(apiKey) {
       try {
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
         if (!res.ok) return null;
         const data = await res.json();
         if (data.models && Array.isArray(data.models)) {
-          // Filter models supporting generateContent
           const valid = data.models.filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes("generateContent"));
-          
-          // Prefer active models based on dashboard limits
           const preferredModel = valid.find(m => m.name.includes("gemini-2.5-flash")) || valid.find(m => m.name.includes("gemini-3.6-flash"));
           if (preferredModel) return preferredModel.name.replace(/^models\//, '');
           
-          // Fall back to any active flash model
           const anyFlash = valid.find(m => m.name.includes("flash"));
           if (anyFlash) return anyFlash.name.replace(/^models\//, '');
 
@@ -440,11 +429,13 @@
         return;
       }
 
+      // 1. Show container & scroll smoothly
       responseContainer.classList.remove('hidden');
       responseContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-      loadingContainer.classList.remove('hidden');
-      responseText.classList.add('hidden');
+      // 2. Explicitly show loader and hide response content
+      loadingContainer.style.display = 'block';
+      responseText.style.display = 'none';
       copyBtn.classList.add('hidden');
       modelBadge.classList.add('hidden');
       
@@ -463,15 +454,9 @@ ${JSON.stringify(sampleData, null, 2)}`;
       let usedModel = "gemini-2.5-flash";
 
       try {
-        progressText.innerHTML = `
-          <svg class="animate-spin h-4 w-4 text-[#008744]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-          <span>Analyzing ticket dataset with Gemini...</span>
-        `;
+        progressText.innerText = "Analyzing ticket dataset with Gemini...";
 
-        // Strategy 1: Primary active model with available quota (gemini-2.5-flash)
+        // Strategy 1: Primary active model (gemini-2.5-flash)
         try {
           result = await callGeminiModel('gemini-2.5-flash', apiKey, prompt);
           usedModel = 'gemini-2.5-flash';
@@ -505,15 +490,15 @@ ${JSON.stringify(sampleData, null, 2)}`;
           modelBadge.innerText = `Model: ${usedModel}`;
           modelBadge.classList.remove('hidden');
 
-          loadingContainer.classList.add('hidden');
-          responseText.classList.remove('hidden');
+          loadingContainer.style.display = 'none';
+          responseText.style.display = 'block';
           copyBtn.classList.remove('hidden');
         } else {
           throw new Error('Failed to generate response content.');
         }
       } catch (err) {
-        loadingContainer.classList.add('hidden');
-        responseText.classList.remove('hidden');
+        loadingContainer.style.display = 'none';
+        responseText.style.display = 'block';
         responseText.innerHTML = `<div class="p-3 bg-red-50 text-red-700 rounded-lg text-xs"><strong>Error:</strong> ${escapeHtml(err.message)}</div>`;
       } finally {
         askBtn.disabled = false;
