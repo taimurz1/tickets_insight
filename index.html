@@ -16,12 +16,8 @@
     .tcf-green-border { border-color: #008744; }
     .tcf-hover-green:hover { background-color: #006b35; }
     
-    /* Styled Markdown Content for AI Insights */
     .markdown-content h1, .markdown-content h2, .markdown-content h3 {
-      font-weight: 700;
-      color: #0f172a;
-      margin-top: 1rem;
-      margin-bottom: 0.5rem;
+      font-weight: 700; color: #0f172a; margin-top: 1rem; margin-bottom: 0.5rem;
     }
     .markdown-content h1 { font-size: 1.25rem; }
     .markdown-content h2 { font-size: 1.1rem; color: #008744; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.25rem; }
@@ -32,7 +28,7 @@
     .markdown-content li { margin-bottom: 0.25rem; }
     .markdown-content strong { color: #0f172a; font-weight: 600; }
     .markdown-content code { background-color: #e2e8f0; color: #008744; padding: 0.1rem 0.3rem; border-radius: 0.2rem; font-family: monospace; font-size: 0.85em; }
-    .markdown-content blockquote { border-left: 3px solid #008744; padding-left: 0.75rem; color: #475569; italic: true; margin-y: 0.5rem; }
+    .markdown-content blockquote { border-left: 3px solid #008744; padding-left: 0.75rem; color: #475569; margin-y: 0.5rem; }
   </style>
 </head>
 <body class="p-6 font-sans">
@@ -60,11 +56,7 @@
       <div class="space-y-0.5">
         <div class="flex items-center gap-2">
           <label for="apiKey" class="text-xs font-bold text-slate-700 uppercase tracking-wider block">Gemini API Key</label>
-          <button 
-            type="button" 
-            onclick="openApiKeyModal()" 
-            class="text-[11px] text-[#008744] hover:underline font-semibold cursor-pointer"
-          >
+          <button type="button" onclick="openApiKeyModal()" class="text-[11px] text-[#008744] hover:underline font-semibold cursor-pointer">
             How to get a key?
           </button>
         </div>
@@ -149,7 +141,6 @@
       </div>
       
       <div class="p-6">
-        <!-- Professional Loading State Container -->
         <div id="aiLoadingContainer" class="space-y-4 py-2">
           <div class="flex items-center justify-between text-xs">
             <span id="aiProgressText" class="font-semibold text-slate-700 flex items-center gap-2">
@@ -162,12 +153,10 @@
             <span id="aiProgressPercent" class="font-mono text-slate-500 font-bold">15%</span>
           </div>
 
-          <!-- Progress Bar -->
           <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-200">
             <div id="aiProgressBar" class="bg-[#008744] h-full w-[15%] transition-all duration-500 ease-out"></div>
           </div>
 
-          <!-- Step Indicators -->
           <div class="grid grid-cols-4 gap-2 pt-1 text-[11px] text-slate-400">
             <div id="step1" class="font-semibold text-[#008744]">1. Schema Check</div>
             <div id="step2" class="text-center">2. Pattern Analysis</div>
@@ -176,9 +165,7 @@
           </div>
         </div>
 
-        <div id="aiResponseText" class="hidden markdown-content text-xs text-slate-700 leading-relaxed space-y-2">
-          <!-- Formatted markdown output will be rendered here -->
-        </div>
+        <div id="aiResponseText" class="hidden markdown-content text-xs text-slate-700 leading-relaxed space-y-2"></div>
       </div>
     </div>
 
@@ -195,11 +182,11 @@
         <div id="metricTotal" class="text-3xl font-bold text-slate-900">0</div>
       </div>
       <div class="bg-white border border-slate-200 p-5 rounded-xl space-y-1 shadow-sm border-l-4 border-l-amber-400">
-        <span class="text-xs text-slate-500 font-semibold uppercase">Unique Assignees / Reverters</span>
+        <span class="text-xs text-slate-500 font-semibold uppercase">Unique Assignees</span>
         <div id="metricAssignees" class="text-3xl font-bold text-[#008744]">0</div>
       </div>
       <div class="bg-white border border-slate-200 p-5 rounded-xl space-y-1 shadow-sm border-l-4 border-l-emerald-600">
-        <span class="text-xs text-slate-500 font-semibold uppercase">Unique Customers / Sites</span>
+        <span class="text-xs text-slate-500 font-semibold uppercase">Unique Schools / Sites</span>
         <div id="metricCustomers" class="text-3xl font-bold text-emerald-700">0</div>
       </div>
     </div>
@@ -218,56 +205,6 @@
       </div>
     </div>
 
-  </div>
-
-  <!-- API KEY GUIDANCE MODAL -->
-  <div 
-    id="apiKeyModal" 
-    class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-    onclick="closeApiKeyModalOnBackdrop(event)"
-  >
-    <div class="bg-white border border-slate-200 rounded-2xl p-6 max-w-lg w-full space-y-5 relative shadow-xl">
-      <div class="flex items-center justify-between border-b border-slate-200 pb-3">
-        <h3 class="text-sm font-bold text-[#008744] uppercase tracking-wider">How to Get a Gemini API Key</h3>
-        <button 
-          onclick="closeApiKeyModal()" 
-          class="text-slate-400 hover:text-slate-600 text-xl leading-none cursor-pointer"
-        >
-          &times;
-        </button>
-      </div>
-
-      <div class="space-y-3 text-xs text-slate-600">
-        <div class="flex gap-3 items-start">
-          <span class="bg-emerald-100 text-[#008744] rounded-full w-5 h-5 flex items-center justify-center shrink-0 font-bold text-[10px]">1</span>
-          <p>Go to <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" class="text-[#008744] hover:underline font-bold">Google AI Studio (aistudio.google.com)</a> and sign in with your Google Account.</p>
-        </div>
-
-        <div class="flex gap-3 items-start">
-          <span class="bg-emerald-100 text-[#008744] rounded-full w-5 h-5 flex items-center justify-center shrink-0 font-bold text-[10px]">2</span>
-          <p>Click on <strong class="text-slate-800">"Create API key"</strong>.</p>
-        </div>
-
-        <div class="flex gap-3 items-start">
-          <span class="bg-emerald-100 text-[#008744] rounded-full w-5 h-5 flex items-center justify-center shrink-0 font-bold text-[10px]">3</span>
-          <p>Copy your generated key (starts with <code class="bg-slate-100 text-[#008744] px-1 py-0.5 rounded font-mono">AIzaSy...</code>) and paste it into the key box on this page.</p>
-        </div>
-      </div>
-
-      <div class="bg-slate-50 border border-slate-200 p-3 rounded-lg text-[11px] text-slate-500 space-y-1">
-        <p class="font-bold text-slate-700">Privacy & Local Storage:</p>
-        <p>Your key is stored strictly inside your browser's local storage (<code class="font-mono">localStorage</code>) and is never sent anywhere except Google's official Gemini API endpoint.</p>
-      </div>
-
-      <div class="pt-2 flex justify-end">
-        <button 
-          onclick="closeApiKeyModal()" 
-          class="tcf-green-bg tcf-hover-green text-white font-semibold px-4 py-2 rounded-lg text-xs transition-colors shadow-sm"
-        >
-          Got it
-        </button>
-      </div>
-    </div>
   </div>
 
   <script>
@@ -296,9 +233,7 @@
     }
 
     function closeApiKeyModalOnBackdrop(e) {
-      if (e.target.id === 'apiKeyModal') {
-        closeApiKeyModal();
-      }
+      if (e.target.id === 'apiKeyModal') closeApiKeyModal();
     }
 
     function handleQueryKeyPress(event) {
@@ -306,66 +241,6 @@
         event.preventDefault();
         askGemini();
       }
-    }
-
-    function startProgressAnimation() {
-      const progressBar = document.getElementById('aiProgressBar');
-      const progressText = document.getElementById('aiProgressText');
-      const progressPercent = document.getElementById('aiProgressPercent');
-      
-      const step1 = document.getElementById('step1');
-      const step2 = document.getElementById('step2');
-      const step3 = document.getElementById('step3');
-      const step4 = document.getElementById('step4');
-
-      let currentPct = 15;
-      
-      [step1, step2, step3, step4].forEach(s => s.className = 'text-slate-400');
-      step1.className = 'font-semibold text-[#008744]';
-
-      clearInterval(progressInterval);
-      
-      progressInterval = setInterval(() => {
-        if (currentPct < 90) {
-          currentPct += Math.floor(Math.random() * 8) + 3;
-          if (currentPct > 90) currentPct = 90;
-
-          progressBar.style.width = currentPct + '%';
-          progressPercent.innerText = currentPct + '%';
-
-          if (currentPct >= 25 && currentPct < 55) {
-            progressText.innerHTML = `
-              <svg class="animate-spin h-4 w-4 text-[#008744]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              Analyzing operational ticket trends...`;
-            step2.className = 'font-semibold text-[#008744] text-center';
-          } else if (currentPct >= 55 && currentPct < 85) {
-            progressText.innerHTML = `
-              <svg class="animate-spin h-4 w-4 text-[#008744]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              Structuring key executive takeaways...`;
-            step3.className = 'font-semibold text-[#008744] text-center';
-          } else if (currentPct >= 85) {
-            progressText.innerHTML = `
-              <svg class="animate-spin h-4 w-4 text-[#008744]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              Finalizing report synthesis...`;
-            step4.className = 'font-semibold text-[#008744] text-right';
-          }
-        }
-      }, 400);
-    }
-
-    function completeProgressAnimation() {
-      clearInterval(progressInterval);
-      document.getElementById('aiProgressBar').style.width = '100%';
-      document.getElementById('aiProgressPercent').innerText = '100%';
     }
 
     async function analyzeExcel() {
@@ -420,8 +295,8 @@
 
           const totalTickets = dataRows.length;
           
-          let assigneeColIdx = headers.findIndex(h => /assign|assignee|assigned|created|developer|lead|user|by|agent|owner/i.test(String(h)));
-          let customerColIdx = headers.findIndex(h => /customer|client|account|site|selection/i.test(String(h)));
+          let assigneeColIdx = headers.findIndex(h => /assigned to|re-opened by|closed by/i.test(String(h)));
+          let customerColIdx = headers.findIndex(h => /school id|school|customer selection/i.test(String(h)));
 
           const assignees = new Set();
           const customers = new Set();
@@ -468,18 +343,8 @@
       const copyBtn = document.getElementById('copyBtn');
       const askBtn = document.getElementById('askAiBtn');
 
-      if (!apiKey) {
-        alert('Please enter your Gemini API Key first.');
-        return;
-      }
-
-      if (!query) {
-        alert('Please enter a question to query your dataset.');
-        return;
-      }
-
-      if (parsedTicketData.length === 0) {
-        alert('Please upload and analyze an Excel file first so Gemini has data to analyze.');
+      if (!apiKey || !query || parsedTicketData.length === 0) {
+        alert('Please make sure you uploaded a file, entered an API key, and typed a query.');
         return;
       }
 
@@ -491,13 +356,10 @@
       copyBtn.classList.add('hidden');
       
       askBtn.disabled = true;
-      askBtn.classList.add('opacity-50');
-
-      startProgressAnimation();
 
       const sampleData = parsedTicketData.slice(0, 150);
       const prompt = `You are an enterprise IT and operations analyst for The Citizens Foundation (TCF). 
-Answer the question based on the ticket dataset provided. Format your answer clearly using Markdown with headings, bullet points, and key callouts where applicable. Keep the tone professional, structured, and easy for leadership to digest.
+Answer the question based on the ticket dataset provided. Format your answer clearly using Markdown with headings and bullet points.
 
 Question: ${query}
 
@@ -505,79 +367,29 @@ Dataset (JSON Array of Ticket Records):
 ${JSON.stringify(sampleData, null, 2)}`;
 
       try {
-        let targetModels = [];
-        try {
-          const modelsListRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
-          const modelsListData = await modelsListRes.json();
-          
-          if (modelsListData.models && Array.isArray(modelsListData.models)) {
-            targetModels = modelsListData.models
-              .filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent'))
-              .map(m => m.name.replace(/^models\//, ''));
-          }
-        } catch (e) {
-          console.warn('Could not list models dynamically, defaulting to standard endpoints', e);
-        }
-
-        if (targetModels.length === 0) {
-          targetModels = ['gemini-2.0-flash', 'gemini-1.5-flash'];
-        }
-
-        targetModels.sort((a, b) => {
-          if (a.includes('flash') && !b.includes('flash')) return -1;
-          if (!a.includes('flash') && b.includes('flash')) return 1;
-          return 0;
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
         });
 
-        let lastError = '';
+        const result = await response.json();
 
-        for (const modelName of targetModels) {
-          try {
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }]
-              })
-            });
-
-            const result = await response.json();
-
-            if (result.error) {
-              lastError = result.error.message;
-              continue;
-            }
-
-            if (result.candidates && result.candidates[0]?.content?.parts[0]?.text) {
-              completeProgressAnimation();
-              
-              setTimeout(() => {
-                rawAiMarkdown = result.candidates[0].content.parts[0].text;
-                responseText.innerHTML = marked.parse(rawAiMarkdown);
-                loadingContainer.classList.add('hidden');
-                responseText.classList.remove('hidden');
-                copyBtn.classList.remove('hidden');
-              }, 400);
-
-              return;
-            }
-          } catch (err) {
-            lastError = err.message;
-          }
+        if (result.candidates && result.candidates[0]?.content?.parts[0]?.text) {
+          rawAiMarkdown = result.candidates[0].content.parts[0].text;
+          responseText.innerHTML = marked.parse(rawAiMarkdown);
+          loadingContainer.classList.add('hidden');
+          responseText.classList.remove('hidden');
+          copyBtn.classList.remove('hidden');
+        } else {
+          throw new Error(result.error?.message || 'Failed to generate response.');
         }
-
-        clearInterval(progressInterval);
-        loadingContainer.classList.add('hidden');
-        responseText.classList.remove('hidden');
-        responseText.innerHTML = `<div class="p-3 bg-red-50 text-red-700 rounded-lg text-xs"><strong>Error:</strong> ${escapeHtml(lastError || 'Unable to fetch response from Gemini.')}</div>`;
       } catch (err) {
-        clearInterval(progressInterval);
         loadingContainer.classList.add('hidden');
         responseText.classList.remove('hidden');
         responseText.innerHTML = `<div class="p-3 bg-red-50 text-red-700 rounded-lg text-xs"><strong>Error:</strong> ${escapeHtml(err.message)}</div>`;
       } finally {
         askBtn.disabled = false;
-        askBtn.classList.remove('opacity-50');
       }
     }
 
@@ -591,12 +403,7 @@ ${JSON.stringify(sampleData, null, 2)}`;
     }
 
     function escapeHtml(str) {
-      return str
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
     }
   </script>
 </body>

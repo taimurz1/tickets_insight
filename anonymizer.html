@@ -23,7 +23,7 @@
           <span class="bg-emerald-100 text-[#008744] text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">Privacy Tool</span>
           <h1 class="text-2xl font-bold text-slate-800">Field Data Anonymizer</h1>
         </div>
-        <p class="text-xs text-slate-500 mt-1">Safely sanitize PII (Names, Phone Numbers, Emails) client-side before processing or sharing.</p>
+        <p class="text-xs text-slate-500 mt-1">Sanitize PII, Names, and Numbers client-side using deterministic mapping.</p>
       </div>
       <div class="flex items-center gap-3">
         <a href="index.html" class="inline-flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-4 py-2.5 rounded-xl border border-slate-300 transition-colors">
@@ -33,7 +33,7 @@
       </div>
     </div>
 
-    <!-- Upload & Options Section -->
+    <!-- Upload & Controls -->
     <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-5">
       <div>
         <label for="anonFile" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
@@ -45,25 +45,6 @@
           accept=".xlsx, .xls, .csv" 
           class="block w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-[#008744] hover:file:bg-emerald-100 cursor-pointer border border-slate-200 rounded-lg bg-slate-50"
         >
-      </div>
-
-      <!-- Anonymization Rules -->
-      <div class="space-y-2 pt-2 border-t border-slate-100">
-        <span class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Masking Rules</span>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <label class="flex items-center gap-2 text-xs text-slate-700 bg-slate-50 p-3 rounded-lg border border-slate-200 cursor-pointer hover:bg-emerald-50/50">
-            <input type="checkbox" id="maskPhone" checked class="accent-[#008744]">
-            <span>Mask Phone Numbers</span>
-          </label>
-          <label class="flex items-center gap-2 text-xs text-slate-700 bg-slate-50 p-3 rounded-lg border border-slate-200 cursor-pointer hover:bg-emerald-50/50">
-            <input type="checkbox" id="maskEmail" checked class="accent-[#008744]">
-            <span>Mask Email Addresses</span>
-          </label>
-          <label class="flex items-center gap-2 text-xs text-slate-700 bg-slate-50 p-3 rounded-lg border border-slate-200 cursor-pointer hover:bg-emerald-50/50">
-            <input type="checkbox" id="maskNames" checked class="accent-[#008744]">
-            <span>Pseudonymize Names & Assignees</span>
-          </label>
-        </div>
       </div>
 
       <div class="flex items-center gap-3 pt-2">
@@ -110,6 +91,19 @@
     let sanitizedWorkbookData = [];
     let sanitizedHeaders = [];
 
+    // Columns that must NOT be modified
+    const UNCHANGED_COLUMNS = new Set([
+      "ticket number", "team", "created at", "ticket category",
+      "ticket sub category", "atat", "status", "closed at",
+      "region", "area", "re-opened at", "pipeline stage", "channel"
+    ]);
+
+    // Columns where names, emails, and phone numbers are replaced
+    const REPLACE_COLUMNS = new Set([
+      "ticket subject", "assigned to", "description", "ticket feedback",
+      "customer selection", "school id", "school", "re-opened by", "closed by"
+    ]);
+
     function runAnonymizer() {
       const fileInput = document.getElementById('anonFile');
       const status = document.getElementById('anonStatus');
@@ -143,39 +137,85 @@
           sanitizedHeaders = rows[0];
           const rawDataRows = rows.slice(1);
 
-          const doPhone = document.getElementById('maskPhone').checked;
-          const doEmail = document.getElementById('maskEmail').checked;
-          const doNames = document.getElementById('maskNames').checked;
-
-          const nameMap = new Map();
+          // Global deterministic replacement map
+          const replacementMap = new Map();
           let userCounter = 1;
+          let phoneCounter = 1;
+          let schoolCounter = 1;
 
-          // Regular expression to detect columns that contain names or user references
-          const nameHeaderPattern = /name|assign|assignee|assigned|created|user|owner|developer|lead|agent|reverter|author/i;
+          function getOrMapUser(name) {
+            const clean = name.trim();
+            if (!clean) return name;
+            if (!replacementMap.has(clean.toLowerCase())) {
+              replacementMap.set(clean.toLowerCase(), `User_${userCounter++}`);
+            }
+            return replacementMap.get(clean.toLowerCase());
+          }
 
+          function getOrMapPhone(phone) {
+            const clean = phone.trim();
+            if (!replacementMap.has(clean)) {
+              replacementMap.set(clean, `+92-3XX-000000${phoneCounter++}`);
+            }
+            return replacementMap.get(clean);
+          }
+
+          function getOrMapSchool(school) {
+            const clean = school.trim();
+            if (!clean) return school;
+            if (!replacementMap.has(clean.toLowerCase())) {
+              replacementMap.set(clean.toLowerCase(), `School_Site_${schoolCounter++}`);
+            }
+            return replacementMap.get(clean.toLowerCase());
+          }
+
+          // Process rows
           sanitizedWorkbookData = rawDataRows.map(row => {
             return row.map((cell, idx) => {
-              let val = String(cell);
-              const header = String(sanitizedHeaders[idx] || '').trim();
+              let val = String(cell !== undefined ? cell : '');
+              const headerRaw = String(sanitizedHeaders[idx] || '').trim();
+              const headerLower = headerRaw.toLowerCase();
 
-              // Mask Emails
-              if (doEmail && (header.toLowerCase().includes('email') || val.includes('@'))) {
-                val = val.replace(/([^@\s]+)@([^@\s]+)/g, 'user_****@tcf.org.pk');
+              // If explicitly in Unchanged list or not in Replace list, leave untouched
+              if (UNCHANGED_COLUMNS.has(headerLower) || (!REPLACE_COLUMNS.has(headerLower) && headerRaw !== '')) {
+                return val;
               }
 
-              // Mask Phone Numbers
-              if (doPhone && (header.toLowerCase().includes('phone') || header.toLowerCase().includes('mobile') || header.toLowerCase().includes('contact') || /\+?\d{10,13}/.test(val))) {
-                val = val.replace(/\+?\d[\d\s-]{8,}/g, 'XXXX-XXXXXXX');
-              }
-
-              // Pseudonymize Names (including "Assigned To", "Assigned", "Assignee")
-              if (doNames && nameHeaderPattern.test(header)) {
-                if (val && val.trim().length > 0 && !/Field_User_|user_|\*{4}|XXXX/i.test(val)) {
-                  const cleanName = val.trim();
-                  if (!nameMap.has(cleanName)) {
-                    nameMap.set(cleanName, `Field_User_${userCounter++}`);
+              if (REPLACE_COLUMNS.has(headerLower)) {
+                // 1. Direct Name Fields (Assigned To, Re-Opened By, Closed By, Customer Selection)
+                if (['assigned to', 're-opened by', 'closed by', 'customer selection'].includes(headerLower)) {
+                  if (val.trim()) {
+                    val = getOrMapUser(val);
                   }
-                  val = nameMap.get(cleanName);
+                } 
+                // 2. Direct School Fields (School ID, School)
+                else if (['school id', 'school'].includes(headerLower)) {
+                  if (val.trim()) {
+                    val = getOrMapSchool(val);
+                  }
+                }
+                // 3. Free Text Fields (Ticket Subject, Description, Ticket Feedback)
+                else {
+                  // Replace Emails
+                  val = val.replace(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g, (match) => {
+                    if (!replacementMap.has(match.toLowerCase())) {
+                      replacementMap.set(match.toLowerCase(), `user_anon${userCounter++}@tcf.org.pk`);
+                    }
+                    return replacementMap.get(match.toLowerCase());
+                  });
+
+                  // Replace Phone numbers (10+ digits with optional +, hyphens, spaces)
+                  val = val.replace(/(\+?\d[\d\s-]{8,}\d)/g, (match) => {
+                    return getOrMapPhone(match);
+                  });
+
+                  // Replace mapped names in free text
+                  replacementMap.forEach((replacement, originalKey) => {
+                    if (originalKey.length > 2) {
+                      const reg = new RegExp('\\b' + escapeRegExp(originalKey) + '\\b', 'gi');
+                      val = val.replace(reg, replacement);
+                    }
+                  });
                 }
               }
 
@@ -191,7 +231,7 @@
 
           document.getElementById('anonTableContainer').classList.remove('hidden');
           statusText.innerText = 'Anonymization Complete!';
-          statsText.innerText = `Sanitized ${sanitizedWorkbookData.length} rows across ${nameMap.size} unique users`;
+          statsText.innerText = `Processed ${sanitizedWorkbookData.length} rows with ${replacementMap.size} total replacements mapped.`;
           downloadBtn.disabled = false;
 
         } catch (err) {
@@ -210,6 +250,10 @@
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Sanitized_Data");
       XLSX.writeFile(wb, "TCF_Anonymized_Tickets.xlsx");
+    }
+
+    function escapeRegExp(string) {
+      return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
 
     function escapeHtml(str) {
