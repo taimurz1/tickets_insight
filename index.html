@@ -1,31 +1,13 @@
-<style>
-  .scrollable-code-box {
-    max-height: 450px;
-    overflow-y: auto;
-    overflow-x: auto;
-    background-color: #0f172a;
-    color: #e2e8f0;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 0.8rem;
-    padding: 1rem;
-    border-radius: 0.75rem;
-    border: 1px solid #334155;
-  }
-  .scrollable-code-box::-webkit-scrollbar { width: 8px; height: 8px; }
-  .scrollable-code-box::-webkit-scrollbar-track { background: #1e293b; border-radius: 4px; }
-  .scrollable-code-box::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
-  .scrollable-code-box::-webkit-scrollbar-thumb:hover { background: #64748b; }
-</style>
-
-<div class="scrollable-code-box">
-<pre><code><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TCF Operations & Ticket Analyzer</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- SheetJS for client-side Excel parsing -->
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <!-- Marked.js for rendering Markdown output nicely -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
     body { background-color: #f8fafc; color: #1e293b; scroll-behavior: smooth; }
@@ -52,6 +34,7 @@
 <body class="p-6 font-sans">
   <div class="max-w-5xl mx-auto space-y-6">
     
+    <!-- Top Navigation / Header Banner -->
     <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 border-t-4 border-t-[#008744] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
       <div>
         <div class="flex items-center gap-2">
@@ -68,6 +51,7 @@
       </div>
     </div>
 
+    <!-- Gemini API Key Configuration -->
     <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
       <div class="space-y-0.5">
         <div class="flex items-center gap-2">
@@ -89,6 +73,7 @@
       </div>
     </div>
 
+    <!-- Upload Zone -->
     <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
       <div>
         <label for="excelFile" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
@@ -113,6 +98,7 @@
       </div>
     </div>
 
+    <!-- Natural Language Query Section -->
     <div id="nlQueryContainer" class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-3">
       <label for="nlQuery" class="block text-xs font-bold text-[#008744] uppercase tracking-wider">
         Ask AI a Question (Natural Language Query)
@@ -136,6 +122,7 @@
       </div>
     </div>
 
+    <!-- AI Natural Language Response Display -->
     <div id="aiResponseContainer" class="hidden bg-white border border-emerald-300 rounded-xl shadow-md overflow-hidden transition-all duration-300 scroll-mt-6">
       <div class="bg-emerald-50 px-6 py-3.5 border-b border-emerald-200 flex items-center justify-between">
         <h3 class="text-xs font-bold text-[#008744] uppercase tracking-wider flex items-center gap-2">
@@ -158,6 +145,7 @@
       </div>
       
       <div class="p-6 space-y-6">
+        <!-- Phased Progress Bar Loading Indicator with Cancel Option -->
         <div id="aiLoadingContainer" class="py-4 space-y-3">
           <div class="flex items-center justify-between text-xs font-semibold text-slate-700">
             <span id="aiProgressText" class="flex items-center gap-2">
@@ -195,15 +183,18 @@
           <div id="pictorialChartBody" class="space-y-3"></div>
         </div>
 
+        <!-- Rendered AI Response Output -->
         <div id="aiResponseText" style="display: none;" class="markdown-content text-xs text-slate-700 leading-relaxed space-y-2"></div>
       </div>
     </div>
 
+    <!-- Status Output -->
     <div id="status" class="hidden text-xs text-[#008744] bg-emerald-50 border border-emerald-200 p-4 rounded-lg flex items-center justify-between">
       <span id="statusText" class="font-medium">Reading file...</span>
       <span id="statsText" class="text-slate-500 font-mono"></span>
     </div>
 
+    <!-- Summary Metrics Dashboard -->
     <div id="metricsContainer" class="hidden grid grid-cols-1 md:grid-cols-3 gap-4">
       <div class="bg-white border border-slate-200 p-5 rounded-xl space-y-1 shadow-sm border-l-4 border-l-[#008744]">
         <span class="text-xs text-slate-500 font-semibold uppercase">Total Tickets</span>
@@ -219,6 +210,7 @@
       </div>
     </div>
 
+    <!-- Ticket Preview Table -->
     <div id="tableContainer" class="hidden bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
       <div class="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
         <h2 class="text-sm font-bold text-slate-800">Ticket Preview (First 50 Rows - Pseudonymized Names & Numbers)</h2>
@@ -234,6 +226,7 @@
 
   </div>
 
+  <!-- API Key Instructions Modal -->
   <div 
     id="apiKeyModal" 
     onclick="closeApiKeyModalOnBackdrop(event)" 
@@ -533,7 +526,7 @@
       askBtn.disabled = false;
     }
 
-    // Strips out text tables / lists from Markdown and enforces pure pictorial icon visual cards
+    // Pure pictorial icon chart renderer
     function renderPictorialChart(data) {
       const chartSection = document.getElementById('chartSection');
       const container = document.getElementById('pictorialChartBody');
@@ -674,7 +667,6 @@ ${JSON.stringify(sampleData, null, 2)}`;
 
           rawAiMarkdown = result.candidates[0].content.parts[0].text;
           
-          // Filter out markdown tables or text breakdown lists so only pure pictorial views show chart metrics
           let cleanedMarkdown = rawAiMarkdown.replace(/\|[\s\S]*?\|/g, '');
           responseText.innerHTML = marked.parse(cleanedMarkdown);
           
@@ -720,5 +712,3 @@ ${JSON.stringify(sampleData, null, 2)}`;
   </script>
 </body>
 </html>
-</code></pre>
-</div>
