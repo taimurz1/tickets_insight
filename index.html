@@ -346,8 +346,14 @@ Question: ${query}
 Dataset (JSON Array of Ticket Records):
 ${JSON.stringify(sampleData, null, 2)}`;
 
-      // Active, supported model aliases
-      const candidateModels = ['gemini-2.0-flash', 'gemini-1.5-flash'];
+      // Updated array with valid endpoints for REST API v1beta
+      const candidateModels = [
+        'gemini-2.0-flash',
+        'gemini-1.5-flash-latest',
+        'gemini-1.5-flash-002',
+        'gemini-1.5-flash-001'
+      ];
+
       let lastError = '';
 
       for (const modelName of candidateModels) {
@@ -364,12 +370,12 @@ ${JSON.stringify(sampleData, null, 2)}`;
 
           if (result.error) {
             lastError = result.error.message;
-            continue; // Try next candidate model
+            continue; // Fall back to next model endpoint
           }
 
           if (result.candidates && result.candidates[0]?.content?.parts[0]?.text) {
             responseText.innerText = result.candidates[0].content.parts[0].text;
-            return; // Successfully got answer
+            return; // Successfully got response
           }
         } catch (err) {
           lastError = err.message;
