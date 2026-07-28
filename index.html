@@ -31,7 +31,7 @@
     .markdown-content ol { list-style-type: decimal; padding-left: 1.25rem; margin-bottom: 0.75rem; }
     .markdown-content li { margin-bottom: 0.25rem; }
     .markdown-content strong { color: #0f172a; font-weight: 600; }
-    .markdown-content code { background-color: #e2e8f0; color: #008744; padding: 0.1rem 0.3rem; rounded: 0.2rem; font-family: monospace; font-size: 0.85em; }
+    .markdown-content code { background-color: #e2e8f0; color: #008744; padding: 0.1rem 0.3rem; border-radius: 0.2rem; font-family: monospace; font-size: 0.85em; }
     .markdown-content blockquote { border-left: 3px solid #008744; padding-left: 0.75rem; color: #475569; italic: true; margin-y: 0.5rem; }
   </style>
 </head>
@@ -130,7 +130,7 @@
       </div>
     </div>
 
-    <!-- AI Natural Language Response Display (Visually Enhanced) -->
+    <!-- AI Natural Language Response Display (Visually Enhanced with Step Progress) -->
     <div id="aiResponseContainer" class="hidden bg-white border border-emerald-300 rounded-xl shadow-md overflow-hidden transition-all duration-300">
       <div class="bg-emerald-50 px-6 py-3.5 border-b border-emerald-200 flex items-center justify-between">
         <h3 class="text-xs font-bold text-[#008744] uppercase tracking-wider flex items-center gap-2">
@@ -138,9 +138,10 @@
           Gemini Executive Insights
         </h3>
         <button 
+          id="copyBtn"
           onclick="copyAiResponse()" 
           title="Copy insights" 
-          class="text-xs text-[#008744] hover:text-emerald-800 font-semibold flex items-center gap-1 bg-white px-2.5 py-1 rounded border border-emerald-200 shadow-2xs transition-colors"
+          class="hidden text-xs text-[#008744] hover:text-emerald-800 font-semibold flex items-center gap-1 bg-white px-2.5 py-1 rounded border border-emerald-200 shadow-2xs transition-colors"
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
           <span id="copyBtnText">Copy</span>
@@ -148,7 +149,34 @@
       </div>
       
       <div class="p-6">
-        <div id="aiResponseText" class="markdown-content text-xs text-slate-700 leading-relaxed space-y-2">
+        <!-- Professional Loading State Container -->
+        <div id="aiLoadingContainer" class="space-y-4 py-2">
+          <div class="flex items-center justify-between text-xs">
+            <span id="aiProgressText" class="font-semibold text-slate-700 flex items-center gap-2">
+              <svg class="animate-spin h-4 w-4 text-[#008744]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Parsing dataset schema...
+            </span>
+            <span id="aiProgressPercent" class="font-mono text-slate-500 font-bold">15%</span>
+          </div>
+
+          <!-- Progress Bar -->
+          <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-200">
+            <div id="aiProgressBar" class="bg-[#008744] h-full w-[15%] transition-all duration-500 ease-out"></div>
+          </div>
+
+          <!-- Step Indicators -->
+          <div class="grid grid-cols-4 gap-2 pt-1 text-[11px] text-slate-400">
+            <div id="step1" class="font-semibold text-[#008744]">1. Schema Check</div>
+            <div id="step2" class="text-center">2. Pattern Analysis</div>
+            <div id="step3" class="text-center">3. Key Takeaways</div>
+            <div id="step4" class="text-right">4. Rendering</div>
+          </div>
+        </div>
+
+        <div id="aiResponseText" class="hidden markdown-content text-xs text-slate-700 leading-relaxed space-y-2">
           <!-- Formatted markdown output will be rendered here -->
         </div>
       </div>
@@ -245,6 +273,7 @@
   <script>
     let parsedTicketData = [];
     let rawAiMarkdown = "";
+    let progressInterval = null;
 
     window.addEventListener('DOMContentLoaded', () => {
       const savedKey = localStorage.getItem('gemini_api_key');
@@ -272,12 +301,72 @@
       }
     }
 
-    /* Allow submitting query by pressing 'Enter' key */
     function handleQueryKeyPress(event) {
       if (event.key === 'Enter' || event.keyCode === 13) {
         event.preventDefault();
         askGemini();
       }
+    }
+
+    function startProgressAnimation() {
+      const progressBar = document.getElementById('aiProgressBar');
+      const progressText = document.getElementById('aiProgressText');
+      const progressPercent = document.getElementById('aiProgressPercent');
+      
+      const step1 = document.getElementById('step1');
+      const step2 = document.getElementById('step2');
+      const step3 = document.getElementById('step3');
+      const step4 = document.getElementById('step4');
+
+      let currentPct = 15;
+      
+      // Reset classes
+      [step1, step2, step3, step4].forEach(s => s.className = 'text-slate-400');
+      step1.className = 'font-semibold text-[#008744]';
+
+      clearInterval(progressInterval);
+      
+      progressInterval = setInterval(() => {
+        if (currentPct < 90) {
+          currentPct += Math.floor(Math.random() * 8) + 3;
+          if (currentPct > 90) currentPct = 90;
+
+          progressBar.style.width = currentPct + '%';
+          progressPercent.innerText = currentPct + '%';
+
+          if (currentPct >= 25 && currentPct < 55) {
+            progressText.innerHTML = `
+              <svg class="animate-spin h-4 w-4 text-[#008744]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Analyzing operational ticket trends...`;
+            step2.className = 'font-semibold text-[#008744] text-center';
+          } else if (currentPct >= 55 && currentPct < 85) {
+            progressText.innerHTML = `
+              <svg class="animate-spin h-4 w-4 text-[#008744]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Structuring key executive takeaways...`;
+            step3.className = 'font-semibold text-[#008744] text-center';
+          } else if (currentPct >= 85) {
+            progressText.innerHTML = `
+              <svg class="animate-spin h-4 w-4 text-[#008744]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Finalizing report synthesis...`;
+            step4.className = 'font-semibold text-[#008744] text-right';
+          }
+        }
+      }, 400);
+    }
+
+    function completeProgressAnimation() {
+      clearInterval(progressInterval);
+      document.getElementById('aiProgressBar').style.width = '100%';
+      document.getElementById('aiProgressPercent').innerText = '100%';
     }
 
     async function analyzeExcel() {
@@ -375,7 +464,9 @@
       const apiKey = document.getElementById('apiKey').value.trim();
       const query = document.getElementById('nlQuery').value.trim();
       const responseContainer = document.getElementById('aiResponseContainer');
+      const loadingContainer = document.getElementById('aiLoadingContainer');
       const responseText = document.getElementById('aiResponseText');
+      const copyBtn = document.getElementById('copyBtn');
       const askBtn = document.getElementById('askAiBtn');
 
       if (!apiKey) {
@@ -394,18 +485,14 @@
       }
 
       responseContainer.classList.remove('hidden');
+      loadingContainer.classList.remove('hidden');
+      responseText.classList.add('hidden');
+      copyBtn.classList.add('hidden');
+      
       askBtn.disabled = true;
       askBtn.classList.add('opacity-50');
-      
-      responseText.innerHTML = `
-        <div class="flex items-center gap-3 text-slate-500 py-4">
-          <svg class="animate-spin h-5 w-5 text-[#008744]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-          <span class="text-xs font-semibold">Gemini is analyzing dataset & structuring executive summary...</span>
-        </div>
-      `;
+
+      startProgressAnimation();
 
       const sampleData = parsedTicketData.slice(0, 150);
       const prompt = `You are an enterprise IT and operations analyst for The Citizens Foundation (TCF). 
@@ -461,11 +548,16 @@ ${JSON.stringify(sampleData, null, 2)}`;
             }
 
             if (result.candidates && result.candidates[0]?.content?.parts[0]?.text) {
-              rawAiMarkdown = result.candidates[0].content.parts[0].text;
-              // Parse markdown output visually
-              responseText.innerHTML = marked.parse(rawAiMarkdown);
-              askBtn.disabled = false;
-              askBtn.classList.remove('opacity-50');
+              completeProgressAnimation();
+              
+              setTimeout(() => {
+                rawAiMarkdown = result.candidates[0].content.parts[0].text;
+                responseText.innerHTML = marked.parse(rawAiMarkdown);
+                loadingContainer.classList.add('hidden');
+                responseText.classList.remove('hidden');
+                copyBtn.classList.remove('hidden');
+              }, 400);
+
               return;
             }
           } catch (err) {
@@ -473,8 +565,14 @@ ${JSON.stringify(sampleData, null, 2)}`;
           }
         }
 
+        clearInterval(progressInterval);
+        loadingContainer.classList.add('hidden');
+        responseText.classList.remove('hidden');
         responseText.innerHTML = `<div class="p-3 bg-red-50 text-red-700 rounded-lg text-xs"><strong>Error:</strong> ${escapeHtml(lastError || 'Unable to fetch response from Gemini.')}</div>`;
       } catch (err) {
+        clearInterval(progressInterval);
+        loadingContainer.classList.add('hidden');
+        responseText.classList.remove('hidden');
         responseText.innerHTML = `<div class="p-3 bg-red-50 text-red-700 rounded-lg text-xs"><strong>Error:</strong> ${escapeHtml(err.message)}</div>`;
       } finally {
         askBtn.disabled = false;
