@@ -408,9 +408,9 @@
           // Filter models supporting generateContent
           const valid = data.models.filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes("generateContent"));
           
-          // Prefer active Flash models (gemini-2.0-flash or gemini-1.5-flash)
-          const preferredFlash = valid.find(m => m.name.includes("gemini-2.0-flash")) || valid.find(m => m.name.includes("gemini-1.5-flash"));
-          if (preferredFlash) return preferredFlash.name.replace(/^models\//, '');
+          // Prefer active models based on dashboard limits
+          const preferredModel = valid.find(m => m.name.includes("gemini-2.5-flash")) || valid.find(m => m.name.includes("gemini-3.6-flash"));
+          if (preferredModel) return preferredModel.name.replace(/^models\//, '');
           
           // Fall back to any active flash model
           const anyFlash = valid.find(m => m.name.includes("flash"));
@@ -460,7 +460,7 @@ Dataset (JSON Array of Ticket Records):
 ${JSON.stringify(sampleData, null, 2)}`;
 
       let result = null;
-      let usedModel = "gemini-2.0-flash";
+      let usedModel = "gemini-2.5-flash";
 
       try {
         progressText.innerHTML = `
@@ -471,18 +471,18 @@ ${JSON.stringify(sampleData, null, 2)}`;
           <span>Analyzing ticket dataset with Gemini...</span>
         `;
 
-        // Strategy 1: Primary active model (gemini-2.0-flash)
+        // Strategy 1: Primary active model with available quota (gemini-2.5-flash)
         try {
-          result = await callGeminiModel('gemini-2.0-flash', apiKey, prompt);
-          usedModel = 'gemini-2.0-flash';
+          result = await callGeminiModel('gemini-2.5-flash', apiKey, prompt);
+          usedModel = 'gemini-2.5-flash';
         } catch (firstErr) {
           if (!firstErr.shouldFallback) throw firstErr;
 
-          // Strategy 2: Proven fallback model (gemini-1.5-flash)
-          console.warn("Primary model failed, attempting gemini-1.5-flash:", firstErr.message);
+          // Strategy 2: Active secondary model (gemini-3.6-flash)
+          console.warn("Primary model failed, attempting gemini-3.6-flash:", firstErr.message);
           try {
-            usedModel = 'gemini-1.5-flash';
-            result = await callGeminiModel('gemini-1.5-flash', apiKey, prompt);
+            usedModel = 'gemini-3.6-flash';
+            result = await callGeminiModel('gemini-3.6-flash', apiKey, prompt);
           } catch (secondErr) {
             if (!secondErr.shouldFallback) throw secondErr;
 
@@ -493,7 +493,7 @@ ${JSON.stringify(sampleData, null, 2)}`;
               usedModel = autoModel;
               result = await callGeminiModel(autoModel, apiKey, prompt);
             } else {
-              throw new Error("No active Gemini models found for your API key.");
+              throw new Error("No active Gemini models found with available quota for your API key.");
             }
           }
         }
