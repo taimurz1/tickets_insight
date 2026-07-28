@@ -204,7 +204,7 @@
         <div id="metricTotal" class="text-3xl font-bold text-slate-900">0</div>
       </div>
       <div class="bg-white border border-slate-200 p-5 rounded-xl space-y-1 shadow-sm border-l-4 border-l-amber-400">
-        <span class="text-xs text-slate-500 font-semibold uppercase">Unique Assignees</span>
+        <span class="text-xs text-slate-500 font-semibold uppercase">Unique Assignees / Creators</span>
         <div id="metricAssignees" class="text-3xl font-bold text-[#008744]">0</div>
       </div>
       <div class="bg-white border border-slate-200 p-5 rounded-xl space-y-1 shadow-sm border-l-4 border-l-emerald-600">
@@ -216,7 +216,7 @@
     <!-- Ticket Preview Table -->
     <div id="tableContainer" class="hidden bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
       <div class="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-        <h2 class="text-sm font-bold text-slate-800">Ticket Preview (First 50 Rows)</h2>
+        <h2 class="text-sm font-bold text-slate-800">Ticket Preview (First 50 Rows - Pseudonymized Names & Numbers)</h2>
         <span class="text-xs text-slate-500">Client-side Processed</span>
       </div>
       <div class="overflow-x-auto">
@@ -311,6 +311,21 @@
       }
     }
 
+    // Helper to pseudonymize names & numbers in columns like "Created By"
+    function anonymizeCreatedBy(val) {
+      if (!val) return '';
+      let strVal = String(val).trim();
+      if (!strVal) return '';
+
+      if (!window._createdByMap) window._createdByMap = {};
+      if (!window._createdByCounter) window._createdByCounter = 1;
+
+      if (!window._createdByMap[strVal]) {
+        window._createdByMap[strVal] = `Staff ID ${String(window._createdByCounter++).padStart(2, '0')}`;
+      }
+      return window._createdByMap[strVal];
+    }
+
     async function analyzeExcel() {
       const fileInput = document.getElementById('excelFile');
       const status = document.getElementById('status');
@@ -330,7 +345,11 @@
       status.classList.remove('hidden');
       metricsContainer.classList.add('hidden');
       tableContainer.classList.add('hidden');
-      statusText.innerText = 'Parsing spreadsheet data...';
+      statusText.innerText = 'Parsing and pseudonymizing spreadsheet data...';
+
+      // Reset mapping cache on new file load
+      window._createdByMap = {};
+      window._createdByCounter = 1;
 
       const reader = new FileReader();
 
@@ -353,25 +372,41 @@
           const headers = rows[0];
           const dataRows = rows.slice(1);
 
+          // Find index of 'Created By' column dynamically
+          const createdByColIdx = headers.findIndex(h => /created\s*by/i.test(String(h)));
+
           parsedTicketData = dataRows.map(r => {
             let obj = {};
             headers.forEach((h, idx) => {
-              if (h) obj[h] = r[idx];
+              if (h) {
+                let cellVal = r[idx];
+                // Replace names and numbers in Created By column
+                if (createdByColIdx !== -1 && idx === createdByColIdx) {
+                  cellVal = anonymizeCreatedBy(cellVal);
+                }
+                obj[h] = cellVal;
+              }
             });
             return obj;
           });
 
           const totalTickets = dataRows.length;
           
-          let assigneeColIdx = headers.findIndex(h => /assigned to|re-opened by|closed by/i.test(String(h)));
+          let assigneeColIdx = headers.findIndex(h => /assigned to|re-opened by|closed by|created by/i.test(String(h)));
           let customerColIdx = headers.findIndex(h => /school id|school|customer selection/i.test(String(h)));
 
           const assignees = new Set();
           const customers = new Set();
 
-          dataRows.forEach(r => {
-            if (assigneeColIdx !== -1 && r[assigneeColIdx]) assignees.add(String(r[assigneeColIdx]).trim());
-            if (customerColIdx !== -1 && r[customerColIdx]) customers.add(String(r[customerColIdx]).trim());
+          parsedTicketData.forEach(row => {
+            headers.forEach(h => {
+              if (/assigned to|created by|re-opened by|closed by/i.test(String(h)) && row[h]) {
+                assignees.add(String(row[h]).trim());
+              }
+            });
+            if (customerColIdx !== -1 && row[headers[customerColIdx]]) {
+              customers.add(String(row[headers[customerColIdx]]).trim());
+            }
           });
 
           document.getElementById('metricTotal').innerText = totalTickets.toLocaleString();
@@ -381,16 +416,16 @@
 
           tableHeader.innerHTML = '<tr>' + headers.map(h => `<th class="p-3">${escapeHtml(String(h))}</th>`).join('') + '</tr>';
 
-          const previewRows = dataRows.slice(0, 50);
+          const previewRows = parsedTicketData.slice(0, 50);
           tableBody.innerHTML = previewRows.map(row => {
             return '<tr class="hover:bg-slate-50 transition-colors">' +
-              headers.map((_, colIdx) => `<td class="p-3 whitespace-nowrap">${escapeHtml(String(row[colIdx] !== undefined ? row[colIdx] : ''))}</td>`).join('') +
+              headers.map(h => `<td class="p-3 whitespace-nowrap">${escapeHtml(String(row[h] !== undefined ? row[h] : ''))}</td>`).join('') +
               '</tr>';
           }).join('');
 
           tableContainer.classList.remove('hidden');
 
-          statusText.innerText = 'Analysis Complete!';
+          statusText.innerText = 'Analysis & Pseudonymization Complete!';
           statsText.innerText = `Loaded ${totalTickets} rows from ${file.name}`;
 
         } catch (err) {
@@ -453,7 +488,7 @@
       if (progressInterval) clearInterval(progressInterval);
 
       const phases = [
-        { text: "Preparing dataset context...", pct: 20 },
+        { text: "Preparing pseudonymized context...", pct: 20 },
         { text: "Analyzing operational ticket trends...", pct: 45 },
         { text: "Structuring key executive takeaways...", pct: 70 },
         { text: "Finalizing report synthesis...", pct: 90 }
@@ -516,7 +551,7 @@
       const counts = {};
       data.forEach(row => {
         const keys = Object.keys(row);
-        const catKey = keys.find(k => /status|priority|category|assigned|type/i.test(k)) || keys[0];
+        const catKey = keys.find(k => /status|priority|category|assigned|created|type/i.test(k)) || keys[0];
         if (catKey && row[catKey]) {
           const val = String(row[catKey]).trim();
           counts[val] = (counts[val] || 0) + 1;
@@ -592,7 +627,7 @@
       startProgressAnimation();
 
       const sampleData = parsedTicketData.slice(0, 50);
-      const prompt = `Analyze the ticket dataset provided below and answer the user question. 
+      const prompt = `Analyze the pseudonymized ticket dataset provided below and answer the user question. 
 CRITICAL RULE: DO NOT include any persona introduction, role declaration, or introductory background remarks (e.g., do not say "As an analyst...", "Here is the summary...", etc.). Start your response immediately with the markdown headings and findings.
 
 Question: ${query}
@@ -654,7 +689,7 @@ ${JSON.stringify(sampleData, null, 2)}`;
         }
       } catch (err) {
         if (progressInterval) clearInterval(progressInterval);
-        if (err.name === 'AbortError') return; // Handled by cancel function
+        if (err.name === 'AbortError') return;
         
         loadingContainer.style.display = 'none';
         responseText.style.display = 'block';
