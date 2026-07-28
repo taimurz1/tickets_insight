@@ -61,7 +61,7 @@
           </label>
           <label class="flex items-center gap-2 text-xs text-slate-700 bg-slate-50 p-3 rounded-lg border border-slate-200 cursor-pointer hover:bg-emerald-50/50">
             <input type="checkbox" id="maskNames" checked class="accent-[#008744]">
-            <span>Pseudonymize Names</span>
+            <span>Pseudonymize Names & Assignees</span>
           </label>
         </div>
       </div>
@@ -150,28 +150,32 @@
           const nameMap = new Map();
           let userCounter = 1;
 
+          // Regular expression to detect columns that contain names or user references
+          const nameHeaderPattern = /name|assign|assignee|assigned|created|user|owner|developer|lead|agent|reverter|author/i;
+
           sanitizedWorkbookData = rawDataRows.map(row => {
             return row.map((cell, idx) => {
               let val = String(cell);
-              const header = String(sanitizedHeaders[idx] || '').toLowerCase();
+              const header = String(sanitizedHeaders[idx] || '').trim();
 
               // Mask Emails
-              if (doEmail && (header.includes('email') || val.includes('@'))) {
+              if (doEmail && (header.toLowerCase().includes('email') || val.includes('@'))) {
                 val = val.replace(/([^@\s]+)@([^@\s]+)/g, 'user_****@tcf.org.pk');
               }
 
               // Mask Phone Numbers
-              if (doPhone && (header.includes('phone') || header.includes('mobile') || header.includes('contact') || /\+?\d{10,13}/.test(val))) {
+              if (doPhone && (header.toLowerCase().includes('phone') || header.toLowerCase().includes('mobile') || header.toLowerCase().includes('contact') || /\+?\d{10,13}/.test(val))) {
                 val = val.replace(/\+?\d[\d\s-]{8,}/g, 'XXXX-XXXXXXX');
               }
 
-              // Pseudonymize Names
-              if (doNames && (header.includes('name') || header.includes('user') || header.includes('assignee') || header.includes('created'))) {
-                if (val && val.trim().length > 1 && !/XX|user_/i.test(val)) {
-                  if (!nameMap.has(val)) {
-                    nameMap.set(val, `Field_User_${userCounter++}`);
+              // Pseudonymize Names (including "Assigned To", "Assigned", "Assignee")
+              if (doNames && nameHeaderPattern.test(header)) {
+                if (val && val.trim().length > 0 && !/Field_User_|user_|\*{4}|XXXX/i.test(val)) {
+                  const cleanName = val.trim();
+                  if (!nameMap.has(cleanName)) {
+                    nameMap.set(cleanName, `Field_User_${userCounter++}`);
                   }
-                  val = nameMap.get(val);
+                  val = nameMap.get(cleanName);
                 }
               }
 
@@ -187,7 +191,7 @@
 
           document.getElementById('anonTableContainer').classList.remove('hidden');
           statusText.innerText = 'Anonymization Complete!';
-          statsText.innerText = `Sanitized ${sanitizedWorkbookData.length} rows`;
+          statsText.innerText = `Sanitized ${sanitizedWorkbookData.length} rows across ${nameMap.size} unique users`;
           downloadBtn.disabled = false;
 
         } catch (err) {

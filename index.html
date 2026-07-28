@@ -420,7 +420,7 @@
 
           const totalTickets = dataRows.length;
           
-          let assigneeColIdx = headers.findIndex(h => /assignee|created|developer|lead|user|by|agent/i.test(String(h)));
+          let assigneeColIdx = headers.findIndex(h => /assign|assignee|assigned|created|developer|lead|user|by|agent|owner/i.test(String(h)));
           let customerColIdx = headers.findIndex(h => /customer|client|account|site|selection/i.test(String(h)));
 
           const assignees = new Set();
@@ -483,7 +483,6 @@
         return;
       }
 
-      // Show container and smoothly scroll viewport straight to AI insights
       responseContainer.classList.remove('hidden');
       responseContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
