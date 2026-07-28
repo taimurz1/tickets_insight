@@ -135,7 +135,7 @@
             id="copyBtn"
             onclick="copyAiResponse()" 
             title="Copy insights" 
-            class="hidden text-xs text-[#008744] hover:text-emerald-800 font-semibold flex items-center gap-1 bg-white px-2.5 py-1 rounded border border-emerald-200 shadow-2xs transition-colors"
+            class="hidden text-xs text-[#008744] hover:text-emerald-800 font-semibold flex items-center gap-1 bg-white px-2.5 py-1 rounded border border-emerald-200 transition-colors"
           >
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
             <span id="copyBtnText">Copy</span>
@@ -384,10 +384,11 @@
         const errorMsg = result.error?.message || `HTTP ${response.status} Error`;
         const err = new Error(errorMsg);
         err.status = response.status;
-        // Flag errors related to rate limits, quota issues, or model restrictions
-        err.isQuotaOrRateLimit = response.status === 429 || 
-                                 response.status === 400 ||
-                                 /quota|limit|exceeded|RESOURCE_EXHAUSTED/i.test(errorMsg);
+        // Flag rate limits, missing model aliases, resource exhaustion, or quota issues
+        err.shouldFallback = response.status === 429 || 
+                             response.status === 404 ||
+                             response.status === 400 ||
+                             /quota|limit|exceeded|RESOURCE_EXHAUSTED|not found/i.test(errorMsg);
         throw err;
       }
 
@@ -446,24 +447,22 @@ ${JSON.stringify(sampleData, null, 2)}`;
           // Attempt Primary Model: gemini-2.0-flash
           result = await callGeminiModel('gemini-2.0-flash', apiKey, prompt);
         } catch (firstErr) {
-          // Check if error is quota / rate limit / model access issue
-          if (firstErr.isQuotaOrRateLimit) {
-            console.warn("gemini-2.0-flash failed due to rate/quota limit. Falling back to gemini-1.5-flash:", firstErr.message);
+          if (firstErr.shouldFallback) {
+            console.warn("gemini-2.0-flash unavailable or quota reached. Falling back to gemini-1.5-flash-latest:", firstErr.message);
             
-            // UI feedback indicating fallback attempt
             progressText.innerHTML = `
               <svg class="animate-spin h-4 w-4 text-amber-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              <span>Quota reached on 2.0. Switching automatically to Gemini 1.5 Flash...</span>
+              <span>Primary model unavailable. Switching automatically to Gemini 1.5 Flash...</span>
             `;
 
-            // Fallback Model: gemini-1.5-flash
-            usedModel = "gemini-1.5-flash";
-            result = await callGeminiModel('gemini-1.5-flash', apiKey, prompt);
+            // Updated Fallback Target Alias
+            usedModel = "gemini-1.5-flash-latest";
+            result = await callGeminiModel('gemini-1.5-flash-latest', apiKey, prompt);
           } else {
-            throw firstErr; // Throw other non-quota errors directly
+            throw firstErr;
           }
         }
 
