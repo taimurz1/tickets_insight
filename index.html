@@ -389,7 +389,7 @@
         err.shouldFallback = response.status === 429 || 
                              response.status === 404 ||
                              response.status === 400 ||
-                             /quota|limit|exceeded|RESOURCE_EXHAUSTED|not found/i.test(errorMsg);
+                             /quota|limit|exceeded|RESOURCE_EXHAUSTED|not found|no longer available/i.test(errorMsg);
         throw err;
       }
 
@@ -397,7 +397,7 @@
     }
 
     /**
-     * Queries available models dynamically from Google AI Studio
+     * Dynamically queries available models from Google AI Studio as ultimate fallback
      */
     async function getAvailableModel(apiKey) {
       try {
@@ -407,9 +407,15 @@
         if (data.models && Array.isArray(data.models)) {
           // Filter models supporting generateContent
           const valid = data.models.filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes("generateContent"));
-          // Prefer flash models
-          const flashModel = valid.find(m => m.name.includes("flash"));
-          if (flashModel) return flashModel.name.replace(/^models\//, '');
+          
+          // Prefer active Flash models (gemini-2.0-flash or gemini-1.5-flash)
+          const preferredFlash = valid.find(m => m.name.includes("gemini-2.0-flash")) || valid.find(m => m.name.includes("gemini-1.5-flash"));
+          if (preferredFlash) return preferredFlash.name.replace(/^models\//, '');
+          
+          // Fall back to any active flash model
+          const anyFlash = valid.find(m => m.name.includes("flash"));
+          if (anyFlash) return anyFlash.name.replace(/^models\//, '');
+
           if (valid.length > 0) return valid[0].name.replace(/^models\//, '');
         }
       } catch (e) {
@@ -465,14 +471,14 @@ ${JSON.stringify(sampleData, null, 2)}`;
           <span>Analyzing ticket dataset with Gemini...</span>
         `;
 
-        // Strategy 1: Primary attempt with gemini-2.0-flash
+        // Strategy 1: Primary active model (gemini-2.0-flash)
         try {
           result = await callGeminiModel('gemini-2.0-flash', apiKey, prompt);
           usedModel = 'gemini-2.0-flash';
         } catch (firstErr) {
           if (!firstErr.shouldFallback) throw firstErr;
 
-          // Strategy 2: Fallback to standard gemini-1.5-flash
+          // Strategy 2: Proven fallback model (gemini-1.5-flash)
           console.warn("Primary model failed, attempting gemini-1.5-flash:", firstErr.message);
           try {
             usedModel = 'gemini-1.5-flash';
@@ -480,14 +486,14 @@ ${JSON.stringify(sampleData, null, 2)}`;
           } catch (secondErr) {
             if (!secondErr.shouldFallback) throw secondErr;
 
-            // Strategy 3: Dynamic resolution via ListModels
+            // Strategy 3: Dynamic resolution via ListModels API
             console.warn("Attempting dynamic model discovery via ListModels API...");
             const autoModel = await getAvailableModel(apiKey);
             if (autoModel) {
               usedModel = autoModel;
               result = await callGeminiModel(autoModel, apiKey, prompt);
             } else {
-              throw new Error("No supported Gemini models found for your API key.");
+              throw new Error("No active Gemini models found for your API key.");
             }
           }
         }
