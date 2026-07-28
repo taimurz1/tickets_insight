@@ -10,7 +10,7 @@
   <!-- Marked.js for rendering Markdown output nicely -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
-    body { background-color: #f8fafc; color: #1e293b; }
+    body { background-color: #f8fafc; color: #1e293b; scroll-behavior: smooth; }
     .tcf-green-bg { background-color: #008744; }
     .tcf-green-text { color: #008744; }
     .tcf-green-border { border-color: #008744; }
@@ -130,8 +130,8 @@
       </div>
     </div>
 
-    <!-- AI Natural Language Response Display (Visually Enhanced with Step Progress) -->
-    <div id="aiResponseContainer" class="hidden bg-white border border-emerald-300 rounded-xl shadow-md overflow-hidden transition-all duration-300">
+    <!-- AI Natural Language Response Display -->
+    <div id="aiResponseContainer" class="hidden bg-white border border-emerald-300 rounded-xl shadow-md overflow-hidden transition-all duration-300 scroll-mt-6">
       <div class="bg-emerald-50 px-6 py-3.5 border-b border-emerald-200 flex items-center justify-between">
         <h3 class="text-xs font-bold text-[#008744] uppercase tracking-wider flex items-center gap-2">
           <svg class="w-4 h-4 text-[#008744]" fill="currentColor" viewBox="0 0 20 20"><path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 100-2h-1a1 1 0 100 2h1zM5.757 15.657a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM6 10a1 1 0 100-2H5a1 1 0 100 2h1zM5.757 4.343a1 1 0 00-1.414 1.414l.707.707a1 1 0 001.414-1.414l-.707-.707zM10 15a1 1 0 100 2v1a1 1 0 100-2v-1zM14.243 14.243a1 1 0 001.414 1.414l.707-.707a1 1 0 00-1.414-1.414l-.707.707z"></path></svg>
@@ -320,7 +320,6 @@
 
       let currentPct = 15;
       
-      // Reset classes
       [step1, step2, step3, step4].forEach(s => s.className = 'text-slate-400');
       step1.className = 'font-semibold text-[#008744]';
 
@@ -484,7 +483,10 @@
         return;
       }
 
+      // Show container and smoothly scroll viewport straight to AI insights
       responseContainer.classList.remove('hidden');
+      responseContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
       loadingContainer.classList.remove('hidden');
       responseText.classList.add('hidden');
       copyBtn.classList.add('hidden');
