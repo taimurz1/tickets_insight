@@ -159,7 +159,7 @@
           </div>
           <!-- Phased Fill Bar -->
           <div class="h-2 w-full bg-slate-100 rounded-full overflow-hidden border border-slate-200">
-            <div id="aiProgressBarFill" class="h-full bg-[#008744] transition-all duration-300 rounded-full" style="width: 25%;"></div>
+            <div id="aiProgressBarFill" class="h-full bg-[#008744] transition-all duration-500 rounded-full" style="width: 25%;"></div>
           </div>
         </div>
 
@@ -253,6 +253,7 @@
   <script>
     let parsedTicketData = [];
     let rawAiMarkdown = "";
+    let progressInterval = null;
 
     window.addEventListener('DOMContentLoaded', () => {
       const savedKey = localStorage.getItem('gemini_api_key');
@@ -421,7 +422,32 @@
       return null;
     }
 
-    function updateProgress(stepText, percentage) {
+    function startProgressAnimation() {
+      if (progressInterval) clearInterval(progressInterval);
+
+      const phases = [
+        { text: "Preparing dataset context...", pct: 20 },
+        { text: "Analyzing operational ticket trends...", pct: 45 },
+        { text: "Structuring key executive takeaways...", pct: 70 },
+        { text: "Finalizing report synthesis...", pct: 90 }
+      ];
+
+      let currentPhaseIdx = 0;
+      
+      // Set initial phase
+      updateProgressUI(phases[0].text, phases[0].pct);
+
+      progressInterval = setInterval(() => {
+        currentPhaseIdx++;
+        if (currentPhaseIdx < phases.length) {
+          updateProgressUI(phases[currentPhaseIdx].text, phases[currentPhaseIdx].pct);
+        } else {
+          clearInterval(progressInterval);
+        }
+      }, 1200);
+    }
+
+    function updateProgressUI(stepText, percentage) {
       document.getElementById('aiProgressText').innerHTML = `
         <svg class="animate-spin h-4 w-4 text-[#008744]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -453,7 +479,7 @@
       responseContainer.classList.remove('hidden');
       responseContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-      // 2. Explicitly show loader and hide response content
+      // 2. Reset visibility & start phased progress bar
       loadingContainer.style.display = 'block';
       responseText.style.display = 'none';
       copyBtn.classList.add('hidden');
@@ -463,8 +489,7 @@
       askBtn.disabled = true;
 
       const startTime = performance.now();
-
-      updateProgress("Preparing dataset context...", 25);
+      startProgressAnimation();
 
       const sampleData = parsedTicketData.slice(0, 50);
       const prompt = `You are an enterprise IT and operations analyst for The Citizens Foundation (TCF). 
@@ -479,8 +504,6 @@ ${JSON.stringify(sampleData, null, 2)}`;
       let usedModel = "gemini-2.5-flash";
 
       try {
-        updateProgress("Sending request to Gemini API...", 60);
-
         // Strategy 1: Primary active model (gemini-2.5-flash)
         try {
           result = await callGeminiModel('gemini-2.5-flash', apiKey, prompt);
@@ -488,14 +511,12 @@ ${JSON.stringify(sampleData, null, 2)}`;
         } catch (firstErr) {
           if (!firstErr.shouldFallback) throw firstErr;
 
-          updateProgress("Trying alternate model (gemini-3.6-flash)...", 75);
           try {
             usedModel = 'gemini-3.6-flash';
             result = await callGeminiModel('gemini-3.6-flash', apiKey, prompt);
           } catch (secondErr) {
             if (!secondErr.shouldFallback) throw secondErr;
 
-            updateProgress("Discovering available active model...", 85);
             const autoModel = await getAvailableModel(apiKey);
             if (autoModel) {
               usedModel = autoModel;
@@ -506,7 +527,8 @@ ${JSON.stringify(sampleData, null, 2)}`;
           }
         }
 
-        updateProgress("Processing executive response...", 95);
+        if (progressInterval) clearInterval(progressInterval);
+        updateProgressUI("Finalizing report synthesis...", 100);
 
         if (result && result.candidates && result.candidates[0]?.content?.parts[0]?.text) {
           const endTime = performance.now();
@@ -528,6 +550,7 @@ ${JSON.stringify(sampleData, null, 2)}`;
           throw new Error('Failed to generate response content.');
         }
       } catch (err) {
+        if (progressInterval) clearInterval(progressInterval);
         loadingContainer.style.display = 'none';
         responseText.style.display = 'block';
         responseText.innerHTML = `<div class="p-3 bg-red-50 text-red-700 rounded-lg text-xs"><strong>Error:</strong> ${escapeHtml(err.message)}</div>`;
